@@ -1,0 +1,95 @@
+server:
+  port: 8090
+
+spring:
+       profiles:
+         active: default
+
+ots:
+  endpoint: https://r01m5bxkue4q.cn-hangzhou.ots.aliyuncs.com
+  instance_name: r01m5bxkue4q
+  access_key_id: LTAI5t8D3KkQd9kRxyNjUZUN
+  access_key_secret: hwgDeLRN8dm0DNT01QeEEBcvTLavbO
+  table_name: dyyc
+  key: key
+
+# excel导出路径
+excel:
+  export-path: C:\\Users\\Administrator\\Desktop\\工作\\
+  file-name: 四区主站-中压-巡检记录表2024.1227.xlsx
+
+  #export-path: C:\\Users\\Administrator\\Desktop\\工作\\
+
+# 图模文件路径
+tumo:
+  paths:
+    zytumo: C:\\Users\\Administrator\\Desktop\\工作\\zytumo\\{date}\\
+    dytumo: C:\\Users\\Administrator\\Desktop\\工作\\dytumo\\{date}\\
+city:
+  cities:
+    35401: 福州
+    35402: 厦门
+    35405: 泉州
+    35406: 漳州
+    35407: 龙岩
+    35408: 三明
+    35409: 南平
+    35403: 宁德
+    35404: 莆田
+
+areas:
+  area:
+    #0: 全省
+    3096224743817217: 福州市
+    3096224760594433: 厦门市
+    3096224777371649: 泉州市
+    3096224794148865: 漳州市
+    3096224810926081: 龙岩市
+    3096224827703297: 三明市
+    3096224844480513: 宁德市
+    3096224861257729: 南平市
+    3096224878034945: 莆田市
+
+#inspection:
+#  servers:
+#    - ip: 47.98.126.186
+#      port: 22
+#      username: root
+#      password: 123456
+#    - ip: 172.30.103.143
+#      port: 15353
+#      username: gxl
+#      password: 123456
+
+# mock数据
+inspection:
+  servers:
+    - ip: 172.30.103.143
+      port: 22
+      username: root
+      password: 123456
+    - ip: 172.30.103.144
+      port: 15353
+      username: gxl
+      password: 123456
+
+commands:
+  command:
+    CPU_USAGE: top -b -n 1 -p 1 | sed -n '3p' | awk '{print $2}'| sort -nrk 1 | head -n 1
+    MEMORY_USAGE_RATE: free -m | grep Mem | awk '{print $3/$2 * 100.0}'
+    MEMORY_USAGE: free -h | sed -n '2p' | awk '{print $3}'
+    MEMORY_TOTAL: free -h | sed -n '2p' | awk '{print $2}'
+    DISK_USAGE: df -h | grep /dev/vda | awk '{print $3'
+    DISK_TOTAL: df -h | grep /dev/vda | awk '{print $2'
+    DISK_USAGE_RATE: df -h | grep /dev/vda | awk '{print $5'
+    JAVA_PROCESSES: jps
+    THREAD_COUNT: ps -elf | wc -l
+    SECOND_DISK_USAGE_RATE: df -h | grep /dev/vdb1| awk '{print $5}'
+    SECOND_DISK_USAGE: df -h | grep /dev/vdb1| awk '{print $3}'
+    SECOND_DISK_TOTAL: df -h | grep /dev/vdb1| awk '{print $2}'
+    SECOND_DISK_USAGE_RATE_209: df -h | grep /dev
+    SECOND_DISK_USAGE_209: df -h | grep /dev
+    SECOND_DISK_TOTAL_209: df -h | grep /dev
+    THIRD_DISK_USAGE_RATE: df -h | grep /dev/vdc1| awk '{print $5}'
+    THIRD_DISK_USAGE: df -h | grep /dev/vdc1| awk '{print $3}'
+    THIRD_DISK_TOTAL: df -h | grep /dev/vdc1| awk '{print $2}'
