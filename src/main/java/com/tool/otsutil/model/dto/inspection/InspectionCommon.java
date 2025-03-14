@@ -19,6 +19,7 @@ public class InspectionCommon {
     public static final String DISK_USAGE = "DISK_USAGE";
     public static final String DISK_TOTAL = "DISK_TOTAL";
     public static final String THREAD_COUNT = "THREAD_COUNT";
+    public static final String JPS_PATH = "JPS_PATH";
     public static final String JAVA_PROCESSES = "JAVA_PROCESSES";
 
     public static final String SECOND_DISK_USAGE_RATE = "SECOND_DISK_USAGE_RATE";

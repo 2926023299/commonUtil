@@ -15,16 +15,16 @@ ots:
 
 # excel导出路径
 excel:
-  export-path: C:\\Users\\Administrator\\Desktop\\工作\\
-  file-name: 四区主站-中压-巡检记录表2024.1227.xlsx
+  export-path: C:\\Users\\GXL\\Desktop\\工作\\
+  file-name: 四区主站-中压-巡检记录表2025.xlsx
 
   #export-path: C:\\Users\\Administrator\\Desktop\\工作\\
 
 # 图模文件路径
 tumo:
   paths:
-    zytumo: C:\\Users\\Administrator\\Desktop\\工作\\zytumo\\{date}\\
-    dytumo: C:\\Users\\Administrator\\Desktop\\工作\\dytumo\\{date}\\
+    zytumo: C:\\Users\\GXL\\Desktop\\工作\\zytumo\\{date}\\
+    dytumo: C:\\Users\\GXL\\Desktop\\工作\\dytumo\\{date}\\
 city:
   cities:
     35401: 福州
@@ -64,13 +64,17 @@ areas:
 # mock数据
 inspection:
   servers:
-    - ip: 172.30.103.143
-      port: 22
+    - ip: 47.98.126.186
+      port: 15353
       username: root
       password: 123456
-    - ip: 172.30.103.144
+    - ip: 47.98.126.186
       port: 15353
-      username: gxl
+      username: root
+      password: 123456
+    - ip: 47.98.126.183
+      port: 15353
+      username: root
       password: 123456
 
 commands:
@@ -82,7 +86,8 @@ commands:
     DISK_USAGE: df -h | grep /dev/vda | awk '{print $3'
     DISK_TOTAL: df -h | grep /dev/vda | awk '{print $2'
     DISK_USAGE_RATE: df -h | grep /dev/vda | awk '{print $5'
-    JAVA_PROCESSES: jps
+    JPS_PATH: which jps
+    JAVA_PROCESSES: " | awk '{print $2}'"
     THREAD_COUNT: ps -elf | wc -l
     SECOND_DISK_USAGE_RATE: df -h | grep /dev/vdb1| awk '{print $5}'
     SECOND_DISK_USAGE: df -h | grep /dev/vdb1| awk '{print $3}'

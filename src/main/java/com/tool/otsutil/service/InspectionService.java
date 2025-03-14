@@ -1,5 +1,7 @@
 package com.tool.otsutil.service;
 
+import cn.hutool.Hutool;
+import cn.hutool.core.util.ObjectUtil;
 import com.tool.otsutil.config.CommandsConfig;
 import com.tool.otsutil.config.InspectionConfig;
 import com.tool.otsutil.model.dto.inspection.InspectionCommon;
@@ -15,6 +17,7 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -65,9 +68,25 @@ public class InspectionService {
                 String diskUsageRate = executeCommand(sshClient, commandsConfig.getCommand().get(InspectionCommon.DISK_USAGE_RATE)).replace("\n", "");
                 // 获取线程数
                 String threadCount = executeCommand(sshClient, commandsConfig.getCommand().get(InspectionCommon.THREAD_COUNT)).replace("\n", "");
-                // 获取java进程
-                String javaProcesses = executeCommand(sshClient, commandsConfig.getCommand().get(InspectionCommon.JAVA_PROCESSES)).replace("\n", "");
+                // 获取java进程,并去掉最后一个换行符
+                String jpsPath = executeCommand(sshClient, commandsConfig.getCommand().get(InspectionCommon.JPS_PATH)).replace("\n", "");
+                if(ObjectUtil.isEmpty(jpsPath) || jpsPath.isEmpty()){
+                    jpsPath = "/usr/local/jdk1.8.0_121/bin/jps";
+                }
+                String javaProcesses = executeCommand(sshClient, jpsPath + commandsConfig.getCommand().get(InspectionCommon.JAVA_PROCESSES));
+                if(ObjectUtil.isEmpty(javaProcesses)){
+                    jpsPath = "/usr/local/jdk1.8.0_202/bin/jps";
+                    javaProcesses = executeCommand(sshClient, jpsPath + commandsConfig.getCommand().get(InspectionCommon.JAVA_PROCESSES));
+                }
+                if(ObjectUtil.isEmpty(javaProcesses)){
+                    jpsPath = "~/jdk1.8/bin/jps";
+                    javaProcesses = executeCommand(sshClient, jpsPath + commandsConfig.getCommand().get(InspectionCommon.JAVA_PROCESSES));
+                }
 
+                // 去除最后一个换行符
+                if (ObjectUtil.isNotEmpty(javaProcesses) && javaProcesses.endsWith("\n")) {
+                    javaProcesses = javaProcesses.substring(0, javaProcesses.length() - 1);
+                }
 
                 String secondDiskUsage = "";
                 String secondDiskTotal = "";
@@ -148,6 +167,7 @@ public class InspectionService {
         //LinkedHashMap<String, InspectionResult> inspectionResultMap = getMock();
 
         excelExportUtil.exportInspectionToExcel(fileName, headers, inspectionResultMap);
+        excelExportUtil.exportJavaInspectionToExcel(fileName, inspectionResultMap);
         inspectionResultMap.forEach((key, value) -> {
             log.info("导出ip:{}", value.getResultInfo().get(InspectionCommon.IP));
             value.getResultInfo().forEach((key1, value1) -> {
@@ -155,6 +175,7 @@ public class InspectionService {
             });
         });
     }
+
 
     //获取模拟数据
     private static LinkedHashMap<String, InspectionResult> getMock() {
@@ -169,7 +190,7 @@ public class InspectionService {
         result1.put(InspectionCommon.THREAD_COUNT, "2999");
         result1.put(InspectionCommon.JAVA_PROCESSES, "7");
         Map<String, String> result2 = new HashMap<>();
-        result1.put(InspectionCommon.IP, "172.30.103.144");
+        result2.put(InspectionCommon.IP, "172.30.103.144");
         result2.put(InspectionCommon.CPU_USAGE, "79");
         result2.put(InspectionCommon.MEMORY_USAGE_RATE, "0.83");
         result2.put(InspectionCommon.MEMORY_USAGE, "8G/15G");
