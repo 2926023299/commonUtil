@@ -2,6 +2,7 @@ package com.tool.otsutil.service;
 
 import com.tool.otsutil.config.CitiesConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -70,6 +71,7 @@ public class TuMoStatisticsService {
 
         String filePath = outputPath + fileName;
         Workbook workbook;
+        ZipSecureFile.setMinInflateRatio(-1.0d);  // 关闭安全检测，允许任何压缩率
 
         // 检查文件是否存在
         File file = new File(filePath);

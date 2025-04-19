@@ -12,14 +12,11 @@ import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.dto.ApiDto.*;
 import com.tool.otsutil.util.ExcelExportUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.formula.functions.T;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.function.Function;
 
 @Slf4j
 @Service
@@ -84,7 +81,7 @@ public class ApiService {
 
         // 获取 URL 模板
         String urlTemplate = config.getUrlTemplate();
-        log.info("参数：{}", Arrays.stream(params).toArray());
+        log.info("参数：{}", params);
 
         // 替换 URL 模板中的占位符
         for (int i = 0; i < params.length; i++) {
@@ -297,7 +294,7 @@ public class ApiService {
         }
 
         // 获取终端遥控成功率
-        ApiResponse<RemoteSuccessRate> remoteSuccessRateApiResponse = getRemoteSuccessRates(dayDate, dayDate, dayDate);
+        ApiResponse<RemoteSuccessRate> remoteSuccessRateApiResponse = getRemoteSuccessRates("0", "0", dayDate, dayDate, dayDate);
         if (remoteSuccessRateApiResponse != null) {
             rateResults.addAll(parseRateData(remoteSuccessRateApiResponse));
         }
@@ -307,6 +304,18 @@ public class ApiService {
         } catch (Exception e) {
             e.printStackTrace();
             throw new CustomException(AppHttpCodeEnum.SERVER_ERROR, "率指标数据导出失败：ApiService.exportRateToInspectionExcel");
+        }
+    }
+
+    // 导出终端遥控成功数据到巡检日记中{总数，成功数，率指标}
+    public void exportSuccessToInspectionExcel(String fileName, ApiResponse<RemoteSuccessRate> apiResponse) {
+        LinkedHashMap<String, String> area = areaAlisa.getArea();
+
+        try {
+            excelExportUtil.exportSuccessToInspectionExcel(fileName, area, apiResponse);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new CustomException(AppHttpCodeEnum.SERVER_ERROR, "遥控成功率指标数据导出失败：ApiService.exportSuccessToInspectionExcel");
         }
     }
 
@@ -738,6 +747,8 @@ public class ApiService {
                 }
         );
     }
+
+
 
 
     //    /**

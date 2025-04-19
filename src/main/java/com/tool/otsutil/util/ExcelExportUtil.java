@@ -4,10 +4,13 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
+import com.tool.otsutil.model.dto.ApiDto.ApiResponse;
 import com.tool.otsutil.model.dto.ApiDto.RateResult;
+import com.tool.otsutil.model.dto.ApiDto.RemoteSuccessRate;
 import com.tool.otsutil.model.dto.inspection.InspectionCommon;
 import com.tool.otsutil.model.dto.inspection.InspectionResult;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -22,6 +25,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -40,11 +44,12 @@ public class ExcelExportUtil {
 	 * @param data     数据列表，每个 Map 对应一个 IP 的数据
 	 * @throws IOException 如果文件保存失败
 	 */
-	public void exportInspectionToExcel(String fileName, Map<String, LinkedList<String>> headers, LinkedHashMap<String, InspectionResult> data) throws Exception {
+	public void exportInspectionToExcel(String fileName, String sheetName, Map<String, LinkedList<String>> headers, LinkedHashMap<String, InspectionResult> data) throws Exception {
 		Workbook workbook = new XSSFWorkbook();
 
 		//判断是否存在文件
 		String filePath = exportPath + File.separator + fileName;
+		ZipSecureFile.setMinInflateRatio(-1.0d);  // 关闭安全检测，允许任何压缩率
 		File file = new File(filePath);
 
 		// 判断文件是否存在
@@ -52,7 +57,7 @@ public class ExcelExportUtil {
 			// 打开文件
 			FileInputStream fis = new FileInputStream(file);
 			workbook = new XSSFWorkbook(fis);
-			Sheet sheet = workbook.getSheet("服务器资源占用巡检");
+			Sheet sheet = workbook.getSheet(sheetName);
 
 			// 判断是否存在sheet
 			if (sheet != null) {
@@ -66,7 +71,7 @@ public class ExcelExportUtil {
 
 			} else {
 				//sheet不存在，则写入新的sheet
-				sheet = workbook.createSheet("服务器资源占用巡检");
+				sheet = workbook.createSheet(sheetName);
 
 				//设置风格
 				CellStyle cellStyle = setGlobalStyle(workbook);
@@ -80,11 +85,12 @@ public class ExcelExportUtil {
 			}
 
 			log.info("servers巡检文件保存成功：{}", filePath);
+			workbook.close();
 			return;
 		}
 
 		//文件不存在，则写入新的文件
-		Sheet sheet = workbook.createSheet("服务器资源占用巡检");
+		Sheet sheet = workbook.createSheet(sheetName);
 		//设置风格
 		CellStyle cellStyle = setGlobalStyle(workbook);
 		writeInspectionNewSheet(headers, data, sheet, cellStyle);
@@ -120,9 +126,9 @@ public class ExcelExportUtil {
 	 */
 	private void writeInspectionNewSheet(Map<String, LinkedList<String>> headers, LinkedHashMap<String, InspectionResult> data, Sheet sheet, CellStyle cellStyle) throws IOException {
 		// 获取当前日期
-		LocalDate currentDate = LocalDate.now();
+		LocalDateTime currentDate = LocalDateTime.now();
 		// 格式化日期和星期
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd EEEE", Locale.CHINA);
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd EEEE HH:mm", Locale.CHINA);
 		// 输出结果
 		String formattedDate = currentDate.format(formatter);
 
@@ -146,7 +152,6 @@ public class ExcelExportUtil {
 
 			if (ipColIndex == 0) {
 				cell.setCellValue(InspectionCommon.IP);
-
 			}
 
 			//写入ip并合并单元格
@@ -189,9 +194,9 @@ public class ExcelExportUtil {
 
 	private void writeInspectionSheet(Map<String, LinkedList<String>> headers, LinkedHashMap<String, InspectionResult> data, Workbook workbook, Sheet sheet) throws Exception {
 		// 获取当前日期
-		LocalDate currentDate = LocalDate.now();
+		LocalDateTime currentDate = LocalDateTime.now();
 		// 格式化日期和星期
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd EEEE", Locale.CHINA);
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd EEEE HH:mm", Locale.CHINA);
 		// 输出结果
 		String formattedDate = currentDate.format(formatter);
 
@@ -240,12 +245,12 @@ public class ExcelExportUtil {
 						value = value.replace("G", "").replace("M", "");
 
 						//判断单位是否为M
-						if (split[0].contains("M")) {
+						if (StrUtil.isNotEmpty(split[0]) && split[0].contains("M")) {
 							split[0] = split[0].replace("M", "");
 							split[0] = String.valueOf(Float.parseFloat(split[0]) / 1024);
 						}
 
-						if (Float.parseFloat(split[0].replace("G", "")) / Float.parseFloat(split[1].replace("G", "")) > 0.8) {
+						if (StrUtil.isNotEmpty(split[0]) && Float.parseFloat(split[0].replace("G", "")) / Float.parseFloat(split[1].replace("G", "")) > 0.8) {
 							// 设置背景颜色为黄色
 							cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
 							cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
@@ -316,6 +321,7 @@ public class ExcelExportUtil {
 		});
 
 		log.info("导出数据展示:{}", rateResults);
+		ZipSecureFile.setMinInflateRatio(-1.0d);  // 关闭安全检测，允许任何压缩率
 
 		Workbook workbook = getWorkbook(fileName);
 
@@ -379,6 +385,8 @@ public class ExcelExportUtil {
 	// 通过文件获取workbook对象
 	private @NotNull Workbook getWorkbook(String fileName) {
 		Workbook workbook;
+
+		ZipSecureFile.setMinInflateRatio(-1.0d);  // 关闭安全检测，允许任何压缩率
 
 		//判断是否存在文件
 		String filePath = exportPath + File.separator + fileName;
@@ -467,6 +475,13 @@ public class ExcelExportUtil {
 
 	// 导出包含 Java 程序信息的巡检日志到 Excel
 	public void exportJavaInspectionToExcel(String fileName, LinkedHashMap<String, InspectionResult> inspectionResultMap) throws IOException {
+		// 获取当前日期
+		LocalDateTime currentDate = LocalDateTime.now();
+		// 格式化日期和星期
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd EEEE HH:mm", Locale.CHINA);
+		// 输出结果
+		String formattedDate = currentDate.format(formatter);
+
 		Workbook workbook = getWorkbook(fileName);
 
 		Sheet sheet = workbook.getSheet("程序巡检");
@@ -485,7 +500,7 @@ public class ExcelExportUtil {
 		Row headerRow = sheet.getRow(0);
 		if (headerRow == null) {
 			headerRow = sheet.createRow(0);
-			String[] headers = {InspectionCommon.IP, "之前的 Java 程序记录", "当前的 Java 程序记录", "是否diff"};
+			String[] headers = {InspectionCommon.IP, "之前的 Java 程序记录", "当前的 Java 程序记录" + formattedDate, "是否diff"};
 			for (int i = 0; i < headers.length; i++) {
 				Cell cell = headerRow.createCell(i);
 				cell.setCellValue(headers[i]);
@@ -548,13 +563,11 @@ public class ExcelExportUtil {
 				cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
 				cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 				diffCell.setCellValue("全null异常");
-			}
-			else if (StrUtil.isBlank(currentValue) && StrUtil.isBlank(previousValue)) {
+			} else if (StrUtil.isBlank(currentValue) && StrUtil.isBlank(previousValue)) {
 				cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
 				cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 				diffCell.setCellValue("全空值异常");
-			}
-			else if (!currentValue.equals(previousValue)) {
+			} else if (!currentValue.equals(previousValue)) {
 				diffCell.setCellValue(getStringDifference(previousValue, currentValue));
 				cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
 				cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
@@ -584,5 +597,89 @@ public class ExcelExportUtil {
 		Set<String> currentSet = new HashSet<>(Arrays.asList(current.split("\n")));
 		baseSet.removeAll(currentSet);
 		return baseSet.isEmpty() ? "否" : String.join("\n", baseSet);
+	}
+
+	// 导出遥控成功率到巡检日志
+	public void exportSuccessToInspectionExcel(String fileName, LinkedHashMap<String, String> area, ApiResponse<RemoteSuccessRate> apiResponse) throws IOException {
+		// 获取当前日期
+		LocalDateTime currentDate = LocalDateTime.now();
+		// 格式化日期和星期
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd EEEE HH:mm", Locale.CHINA);
+		// 输出结果
+		String formattedDate = currentDate.format(formatter);
+
+		Workbook workbook = getWorkbook(fileName);
+
+		Sheet sheet = workbook.getSheet("遥控成功率");
+
+		CellStyle cellStyle = setGlobalStyle(workbook);
+
+		// 判断是否存在sheet
+		if (ObjectUtil.hasNull(sheet)) {
+			log.info("sheet不存在，创建新的sheet:遥控成功率");
+			sheet = workbook.createSheet("遥控成功率");
+		}
+
+		if (sheet == null) {
+			throw new IllegalStateException("无法创建工作表");
+		}
+
+		// 清空表
+		// 清除所有合并单元格
+		for (int i = sheet.getNumMergedRegions() - 1; i >= 0; i--) {
+		    sheet.removeMergedRegion(i);
+		}
+
+		// 清空所有行
+		for (int i = sheet.getLastRowNum(); i >= 0; i--) {
+		    sheet.removeRow(sheet.getRow(i));
+		}
+
+		// 创建表头
+		Row headerRow = sheet.getRow(0);
+		if (headerRow == null) {
+			headerRow = sheet.createRow(0);
+		}
+
+		String[] headers = {"地市-" + formattedDate, "总数", "成功数", "遥控成功率",};
+		for (int i = 0; i < headers.length; i++) {
+			Cell cell = headerRow.createCell(i);
+			cell.setCellValue(headers[i]);
+			cell.setCellStyle(cellStyle);
+		}
+
+		//循环apiResponse.get数据, 根据area插入到表格中
+		for (Map.Entry<String, String> entry : area.entrySet()) {
+			String areaId = entry.getKey();
+			String areaName = entry.getValue();
+			for (RemoteSuccessRate remoteSuccessRate : apiResponse.getData()) {
+				if (remoteSuccessRate.getAreaId().equals(areaId)) {
+					Row row = sheet.getRow(sheet.getLastRowNum() + 1);
+					if (row == null) {
+						row = sheet.createRow(sheet.getLastRowNum() + 1);
+					}
+
+					Cell cell = row.createCell(0);
+					cell.setCellValue(areaName);
+					cell.setCellStyle(cellStyle);
+
+					cell = row.createCell(1);
+					cell.setCellValue(remoteSuccessRate.getTotalCount());
+					cell.setCellStyle(cellStyle);
+
+					cell = row.createCell(2);
+					cell.setCellValue(remoteSuccessRate.getSuccessCount());
+					cell.setCellStyle(cellStyle);
+
+					cell = row.createCell(3);
+					cell.setCellValue(new BigDecimal(remoteSuccessRate.getRate().multiply(new BigDecimal("100")).setScale(2, RoundingMode.HALF_UP).toString()) + "%");
+					cell.setCellStyle(cellStyle);
+				}
+			}
+		}
+
+		exportExcelToPath(fileName, workbook);
+		workbook.close();
+		log.info("遥控成功率导出成功");
 	}
 }

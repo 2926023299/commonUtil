@@ -42,9 +42,27 @@ public class InspectionController {
         return ResponseEntity.ok(stringInspectionResultMap);
     }
 
-    @Scheduled(cron = "0 0 1 * * ?") // 每天凌晨执行一次
+    // 导出服务器巡检结果到excel
+    @GetMapping("/exportServer")
+    public ResponseResult exportInspectionResults() throws Exception {
+        inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
+
+        return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "导出成功\n");
+    }
+
+    @Scheduled(cron = "0 12 10 * * ?") // 每天早上8点12分执行
     public void exportInspection() throws Exception {
-        inspectionService.exportInspectionToExcel(fileName);
+        inspectionService.exportInspectionToExcel(fileName,"服务器资源占用巡检");
+    }
+
+    @Scheduled(cron = "0 0/30 * * * ?") // 每30分钟执行一次
+    public void exportInspectionByHour() throws Exception {
+        inspectionService.exportInspectionToExcel(fileName,"资源巡检(每小时)");
+    }
+
+    @Scheduled(cron = "0 0 8,17 * * ?") // 每天上午8点和下午5点执行
+    public void exportJavaInspection() throws Exception {
+        inspectionService.exportJavaInspectionToExcel(fileName);
     }
 
     @Scheduled(cron = "0 0 2 * * ?") // 每天凌晨执行一次
@@ -68,13 +86,7 @@ public class InspectionController {
         tuMoStatisticsService.exportStatisticsToExcel(fileName, zyStatistics, dyStatistics);
     }
 
-    // 导出服务器巡检结果到excel
-    @GetMapping("/exportServer")
-    public ResponseResult exportInspectionResults() throws Exception {
-        inspectionService.exportInspectionToExcel(fileName);
 
-        return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "导出成功");
-    }
 
     // 导出图模统计结果到excel
     @GetMapping("/exportTuMo")

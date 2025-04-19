@@ -6,6 +6,7 @@ import com.tool.otsutil.model.common.ResponseResult;
 import com.tool.otsutil.model.dto.ApiDto.ApiResponse;
 import com.tool.otsutil.model.dto.ApiDto.AutoFeederRate;
 import com.tool.otsutil.model.dto.ApiDto.OnlineRate;
+import com.tool.otsutil.model.dto.ApiDto.RemoteSuccessRate;
 import com.tool.otsutil.service.ApiService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,28 @@ public class ApiController {
         String dayDate = DateUtil.format(new DateTime(), "yyyy-MM-dd");
 
         return apiService.getOnlineRates(dayDate, "1");
+    }
+
+    @GetMapping("/successRates")
+    public ApiResponse<RemoteSuccessRate> getRemoteSuccessRates() {
+        String yesterdayDate = DateUtil.format(DateUtil.yesterday(), "yyyy-MM-dd");
+        String dayDate = DateUtil.format(new DateTime(), "yyyy-MM-dd");
+
+        ApiResponse<RemoteSuccessRate> apiResponse = apiService.getRemoteSuccessRates("0", "1", dayDate, yesterdayDate, yesterdayDate);
+
+        apiService.exportSuccessToInspectionExcel(fileName,apiResponse);
+		return apiResponse;
+	}
+
+    @Scheduled(cron = "0 0 8 * * ?")
+    public ApiResponse<RemoteSuccessRate> getRemoteSuccessRatesToExcel() {
+        String yesterdayDate = DateUtil.format(DateUtil.yesterday(), "yyyy-MM-dd");
+        String dayDate = DateUtil.format(new DateTime(), "yyyy-MM-dd");
+
+        ApiResponse<RemoteSuccessRate> apiResponse = apiService.getRemoteSuccessRates("0", "1", dayDate, yesterdayDate, yesterdayDate);
+
+        apiService.exportSuccessToInspectionExcel(fileName,apiResponse);
+        return apiResponse;
     }
 
     @GetMapping("/exportAllRates")

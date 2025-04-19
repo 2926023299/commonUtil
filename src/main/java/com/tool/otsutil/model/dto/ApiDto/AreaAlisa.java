@@ -18,6 +18,7 @@ public class AreaAlisa {
         Map<String, String> area = new HashMap<>();
         area.put("3096224743817217", "福州");
         area.put("3096224760594433", "厦门");
+        area.put("3096224878034945", "莆田");
         area.put("3096224777371649", "泉州");
         area.put("3096224794148865", "漳州");
         area.put("3096224810926081", "龙岩");

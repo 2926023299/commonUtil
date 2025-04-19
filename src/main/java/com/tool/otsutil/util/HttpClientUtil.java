@@ -18,6 +18,7 @@ public class HttpClientUtil {
         this.objectMapper = objectMapper;
     }
 
+    // 发送GET请求并解析返回的JSON数据
     public <T> ApiResponse<T> getForObject(String url, TypeReference<ApiResponse<T>> typeReference) {
         ResponseEntity<String> responseEntity = restTemplate.getForEntity(url, String.class);
         String responseBody = responseEntity.getBody();

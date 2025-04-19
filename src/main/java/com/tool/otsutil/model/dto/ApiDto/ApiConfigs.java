@@ -48,7 +48,7 @@ public class ApiConfigs {
 
         // 获取终端遥控成功率
         configs.put("remoteSuccessRate", new ApiConfig(
-                "http://25.86.162.57/gateway/iesweb-rate-calculate/indicatorStatistic/getRemoteSuccessRateFromES?areaId=0&type=0&date={1}&startTime={2}&endTime={3}",
+                "http://25.86.162.57/gateway/iesweb-rate-calculate/indicatorStatistic/getRemoteSuccessRateFromES?areaId={1}&type={2}&date={3}&startTime={4}&endTime={5}",
                 new TypeReference<ApiResponse<RemoteSuccessRate>>() {}
         ));
 
