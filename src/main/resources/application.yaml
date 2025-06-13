@@ -2,16 +2,9 @@ server:
   port: 8090
 
 spring:
-       profiles:
-         active: default
+  profiles:
+    active: default
 
-ots:
-  endpoint: https://r01m5bxkue4q.cn-hangzhou.ots.aliyuncs.com
-  instance_name: r01m5bxkue4q
-  access_key_id: LTAI5t8D3KkQd9kRxyNjUZUN
-  access_key_secret: hwgDeLRN8dm0DNT01QeEEBcvTLavbO
-  table_name: dyyc
-  key: key
 
 # excel导出路径
 excel:
@@ -62,20 +55,35 @@ areas:
 #      password: 123456
 
 # mock数据
+jar:
+  scan:
+    path: C:\\Users\\GXL\\Desktop\\工作\\jar\\
+  target:
+    path: /home/ies/webserver/dmscld/bin/
+  nginx:
+    path: /home/ies/webserver/nginx/html/
+
 inspection:
   servers:
     - ip: 47.98.126.186
       port: 15353
       username: root
       password: 123456
+      jars:
+        - CommonUtil-0.0.1-SNAPSHOT.jar:commonUtil.sh
+        - dmscldpro:null
     - ip: 47.98.126.186
       port: 15353
       username: root
       password: 123456
+      jars:
+        - CommonUtil-0.0.1-SNAPSHOT.jar:commonUtil.sh
     - ip: 47.98.126.183
       port: 15353
       username: root
       password: 123456
+      jars:
+        - null:null
 
 commands:
   command:

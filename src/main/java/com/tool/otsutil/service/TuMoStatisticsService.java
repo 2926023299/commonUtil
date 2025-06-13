@@ -89,6 +89,7 @@ public class TuMoStatisticsService {
         Sheet sheet = workbook.getSheet("图模");
         if (sheet == null) {
             sheet = workbook.createSheet("图模"); // 创建新 Sheet
+            log.info("创建新的 Sheet: 图模");
         } else {
             // 清除旧数据
             for (int i = sheet.getLastRowNum(); i >= 0; i--) {
@@ -141,6 +142,7 @@ public class TuMoStatisticsService {
         // 保存文件
         try (FileOutputStream fos = new FileOutputStream(filePath)) {
             workbook.write(fos);
+            log.info("统计数据已成功导出到 Excel 文件");
         } catch (IOException e) {
             throw new RuntimeException("写入 Excel 文件失败: " + filePath, e);
         }
