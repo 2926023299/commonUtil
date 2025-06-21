@@ -1,19 +1,21 @@
 package com.tool.otsutil.service;
 
-import cn.hutool.Hutool;
 import cn.hutool.core.util.ObjectUtil;
 import com.tool.otsutil.config.CommandsConfig;
 import com.tool.otsutil.config.InspectionConfig;
+import com.tool.otsutil.mapper.InspectionTableMapper;
 import com.tool.otsutil.model.dto.inspection.InspectionCommon;
 import com.tool.otsutil.model.dto.inspection.InspectionHeader;
 import com.tool.otsutil.model.dto.inspection.InspectionResult;
 import com.tool.otsutil.model.dto.inspection.ServerConfig;
+import com.tool.otsutil.model.entity.InspectionTable;
 import com.tool.otsutil.util.ExcelExportUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.common.IOUtils;
 import net.schmizz.sshj.connection.channel.direct.Session;
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
+import org.joda.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
@@ -27,9 +29,6 @@ import java.util.*;
 public class InspectionService {
 
 	@Autowired
-	private Environment environment; // 获取配置文件信息
-
-	@Autowired
 	private InspectionConfig inspectionConfig;
 
 	@Autowired
@@ -40,6 +39,9 @@ public class InspectionService {
 
 	@Autowired
 	private CommandsConfig commandsConfig;
+
+	@Autowired
+	private InspectionTableMapper inspectionTableMapper;
 
 	//进行各个服务器命令巡检
 	public LinkedHashMap<String, InspectionResult> performInspection() {
@@ -118,6 +120,58 @@ public class InspectionService {
 					thirdDiskTotal = executeCommand(sshClient, commandsConfig.getCommand().get(InspectionCommon.THIRD_SECOND_DISK_TOTAL)).replace("\n", "");
 
 				}
+
+				//封装写入mysql的数据
+				InspectionTable inspectionTables = new InspectionTable();
+				inspectionTables.setIP(server.getIp());
+				inspectionTables.setCPU_USAGE(cpuUsage);
+				inspectionTables.setMEMORY_USAGE_RATE(memoryUsageRate);
+				inspectionTables.setMEMORY_USAGE(memoryUsage);
+				inspectionTables.setMEMORY_TOTAL(memoryTotal);
+				inspectionTables.setDISK_USAGE_RATE(diskUsageRate.replace("%",""));
+				inspectionTables.setDISK_USAGE(diskUsage);
+				inspectionTables.setDISK_TOTAL(diskTotal);
+				inspectionTables.setTHREAD_COUNT(threadCount);
+				inspectionTables.setJAVA_PROCESSES(javaProcesses);
+				inspectionTables.setSECOND_DISK_USAGE_RATE(secondDiskUsageRate.replace("%",""));
+				inspectionTables.setSECOND_DISK_USAGE(secondDiskUsage);
+				inspectionTables.setSECOND_DISK_TOTAL(secondDiskTotal);
+				inspectionTables.setTHIRD_DISK_USAGE_RATE(thirdDiskUsageRate.replace("%",""));
+				inspectionTables.setTHIRD_DISK_USAGE(thirdDiskUsage);
+				inspectionTables.setTHIRD_DISK_TOTAL(thirdDiskTotal);
+
+				String description = "";
+				double cpuUsageTmp = ObjectUtil.isEmpty(inspectionTables.getCPU_USAGE()) ? 0 : Double.parseDouble(inspectionTables.getCPU_USAGE());
+				double memoryUsageRateTmp = ObjectUtil.isEmpty(inspectionTables.getMEMORY_USAGE_RATE()) ? 0 : Double.parseDouble(inspectionTables.getMEMORY_USAGE_RATE());
+				double diskUsageRateTmp = ObjectUtil.isEmpty(inspectionTables.getDISK_USAGE_RATE()) ? 0 : Double.parseDouble(inspectionTables.getDISK_USAGE_RATE());
+				double secondDiskUsageRateTmp = ObjectUtil.isEmpty(inspectionTables.getSECOND_DISK_USAGE_RATE()) ? 0 : Double.parseDouble(inspectionTables.getSECOND_DISK_USAGE_RATE());
+				double thirdDiskUsageRateTmp = ObjectUtil.isEmpty(inspectionTables.getTHIRD_DISK_USAGE_RATE()) ? 0 : Double.parseDouble(inspectionTables.getTHIRD_DISK_USAGE_RATE());
+
+				// 设置告警状态和描述
+				if (cpuUsageTmp >= 90 || memoryUsageRateTmp >= 90 || diskUsageRateTmp >= 90 || secondDiskUsageRateTmp >= 90 || thirdDiskUsageRateTmp >= 90) {
+					inspectionTables.setStatus(2);
+					if (cpuUsageTmp >= 90) description += " CPU严重告警 ";
+					if (memoryUsageRateTmp >= 90) description += " 内存严重告警 ";
+					if (diskUsageRateTmp >= 90) description += " 磁盘一严重告警 ";
+					if (secondDiskUsageRateTmp >= 90) description += " 磁盘二严重告警 ";
+					if (thirdDiskUsageRateTmp >= 90) description += " 磁盘三严重告警 ";
+				} else if (cpuUsageTmp > 80 || memoryUsageRateTmp >= 80 || diskUsageRateTmp >= 80 || secondDiskUsageRateTmp >= 80 || thirdDiskUsageRateTmp >= 80) {
+					inspectionTables.setStatus(1);
+					if (cpuUsageTmp > 80) description += " CPU使用率告警 ";
+					if (memoryUsageRateTmp >= 80) description += " 内存使用率告警 ";
+					if (diskUsageRateTmp >= 80) description += " 磁盘一使用率告警 ";
+					if (secondDiskUsageRateTmp >= 80) description += " 磁盘二使用率告警 ";
+					if (thirdDiskUsageRateTmp >= 80) description += " 磁盘三使用率告警 ";
+				} else {
+					inspectionTables.setStatus(0);
+					description = "正常";
+				}
+
+				inspectionTables.setDescription(description);
+				System.out.println("写入mysql: " + inspectionTables);
+				// 写入mysql中
+				inspectionTableMapper.insert(inspectionTables);
+
 
 				//进行结果的封装
 				diskUsage = diskUsage + "/" + diskTotal;

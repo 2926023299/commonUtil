@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tool.otsutil.mapper.InspectionTableMapper">
+
+    <select id="selectLatestByIpWithCondition" resultType="com.tool.otsutil.model.entity.InspectionTable">
+        SELECT t.*
+        FROM inspection_table t
+        INNER JOIN (
+        SELECT it.IP, MAX(it.updateTime) AS max_time
+        FROM inspection_table it
+        <where>
+            <!-- 删除:${ew.sqlSegment} -->
+            <!-- 手动添加带别名的条件 -->
+            <if test="ip != null and ip != ''">
+                AND it.IP LIKE CONCAT('%', #{ip}, '%')
+            </if>
+            <if test="updateTime != null">
+                AND it.updateTime LIKE CONCAT('%', #{updateTime}, '%')
+            </if>
+        </where>
+        GROUP BY it.IP
+        ) latest ON t.IP = latest.IP AND t.updateTime = latest.max_time
+        <where>
+            <!-- 删除:t.${ew.sqlSegment} -->
+            <!-- 手动添加带别名的条件 -->
+            <if test="ip != null and ip != ''">
+                AND t.IP LIKE CONCAT('%', #{ip}, '%')
+            </if>
+            <if test="updateTime != null">
+                AND t.updateTime LIKE CONCAT('%', #{updateTime}, '%')
+            </if>
+            <if test="status != null">
+                AND t.status = #{status}
+            </if>
+        </where>
+    </select>
+</mapper>
+
+

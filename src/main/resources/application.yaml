@@ -4,7 +4,30 @@ server:
 spring:
   profiles:
     active: default
+  #配置数据库
+  datasource:
+    druid:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/ies_ls?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      username: root
+      password: 123456
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    # 在映射实体或属性时，将数据库中的下划线转换为驼峰命名
+    map-underscore-to-camel-case: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: assign_id
 
+ots:
+  endpoint: https://r01m5bxkue4q.cn-hangzhou.ots.aliyuncs.com
+  instance_name: r01m5bxkue4q
+  access_key_id: LTAI5tRHP6E9o1bh7MZY7JXj
+  access_key_secret: AEqi82fg2wI1LK3bKgnOH43O67791l
+  table_name: dyyc
+  key: key
 
 # excel导出路径
 excel:
@@ -91,9 +114,9 @@ commands:
     MEMORY_USAGE_RATE: free -m | grep Mem | awk '{print $3/$2 * 100.0}'
     MEMORY_USAGE: free -h | sed -n '2p' | awk '{print $3}'
     MEMORY_TOTAL: free -h | sed -n '2p' | awk '{print $2}'
-    DISK_USAGE: df -h | grep /dev/vda | awk '{print $3'
-    DISK_TOTAL: df -h | grep /dev/vda | awk '{print $2'
-    DISK_USAGE_RATE: df -h | grep /dev/vda | awk '{print $5'
+    DISK_USAGE: df -h | grep /dev/vda | awk '{print $3}'
+    DISK_TOTAL: df -h | grep /dev/vda | awk '{print $2}'
+    DISK_USAGE_RATE: df -h | grep /dev/vda | awk '{print $5}'
     JPS_PATH: which jps
     JAVA_PROCESSES: " | awk '{print $2}'"
     THREAD_COUNT: ps -elf | wc -l
