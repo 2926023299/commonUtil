@@ -245,15 +245,23 @@ public class ExcelExportUtil {
 						value = value.replace("G", "").replace("M", "");
 
 						//判断单位是否为M
-						if (StrUtil.isNotEmpty(split[0]) && split[0].contains("M")) {
-							split[0] = split[0].replace("M", "");
-							split[0] = String.valueOf(Float.parseFloat(split[0]) / 1024);
-						}
-
-						if (StrUtil.isNotEmpty(split[0]) && Float.parseFloat(split[0].replace("G", "")) / Float.parseFloat(split[1].replace("G", "")) > 0.8) {
-							// 设置背景颜色为黄色
-							cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
-							cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+						if (split.length >= 2 && StrUtil.isNotEmpty(split[0]) && StrUtil.isNotEmpty(split[1])) {
+							if (split[0].contains("M")) {
+								split[0] = split[0].replace("M", "");
+								split[0] = String.valueOf(Float.parseFloat(split[0]) / 1024);
+							}
+							
+							try {
+								float numerator = Float.parseFloat(split[0].replace("G", ""));
+								float denominator = Float.parseFloat(split[1].replace("G", ""));
+								if (denominator > 0 && numerator / denominator > 0.8) {
+									// 设置背景颜色为黄色
+									cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
+									cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+								}
+							} catch (NumberFormatException e) {
+								log.error("内存使用率数据格式错误: {}", value);
+							}
 						}
 					} else if (Objects.equals(header, InspectionCommon.DISK_USAGE_RATE) && Float.parseFloat(value.replace("%", "")) > 80) {
 
@@ -350,6 +358,15 @@ public class ExcelExportUtil {
 
 		// 复制行到newRow
 		copyRow(oldRow, newRow);
+
+		// 把newRow那一行的BX到EQ的数据全部清空
+		for (int i = 16; i <= 75; i++) {
+			Cell cell = newRow.getCell(i);
+			if (cell == null) {
+				cell = newRow.createCell(i);
+			}
+			cell.setCellValue("");
+		}
 
 		CellStyle cellStyle = this.setGlobalStyle(workbook);
 
@@ -568,9 +585,13 @@ public class ExcelExportUtil {
 				cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 				diffCell.setCellValue("全空值异常");
 			} else if (!currentValue.equals(previousValue)) {
-				diffCell.setCellValue(getStringDifference(previousValue, currentValue));
-				cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
-				cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+				String stringDifference = getStringDifference(previousValue, currentValue);
+				diffCell.setCellValue(stringDifference);
+				if(!stringDifference.equals("否")){
+					cellStyle.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
+					cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+				}
+
 				diffCell.setCellStyle(cellStyle);
 			} else {
 				diffCell.setCellValue("否");
@@ -595,6 +616,10 @@ public class ExcelExportUtil {
 		// 简单实现：返回新增的不同行（按换行符分割）
 		Set<String> baseSet = new HashSet<>(Arrays.asList(base.split("\n")));
 		Set<String> currentSet = new HashSet<>(Arrays.asList(current.split("\n")));
+		// 移除当前集合中有包含Jps 的行
+		baseSet.removeIf(line -> line.contains("Jps"));
+		currentSet.removeIf(line -> line.contains("Jps"));
+
 		baseSet.removeAll(currentSet);
 		return baseSet.isEmpty() ? "否" : String.join("\n", baseSet);
 	}

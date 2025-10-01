@@ -3,7 +3,7 @@ package com.tool.otsutil.controller;
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.common.ResponseResult;
-import com.tool.otsutil.service.OtsService;
+import com.tool.otsutil.service.impl.OtsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;

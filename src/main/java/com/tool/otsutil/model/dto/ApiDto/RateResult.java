@@ -12,4 +12,8 @@ public class RateResult {
     private String areaId;
     private String areaName;
     private BigDecimal rate;
+
+	public static RateResult createDefault(String areaId, String areaName) {
+		return new RateResult(areaId, areaName, BigDecimal.ZERO);
+	}
 }

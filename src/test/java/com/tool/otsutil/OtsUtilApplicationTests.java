@@ -2,7 +2,7 @@ package com.tool.otsutil;
 
 import com.tool.otsutil.config.CitiesConfig;
 import com.tool.otsutil.model.common.measureType;
-import com.tool.otsutil.service.OtsService;
+import com.tool.otsutil.service.impl.OtsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

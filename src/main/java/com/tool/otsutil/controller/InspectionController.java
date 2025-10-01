@@ -4,11 +4,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.common.ResponseResult;
 import com.tool.otsutil.model.dto.inspection.InspectionPage;
-import com.tool.otsutil.model.dto.inspection.InspectionResult;
 import com.tool.otsutil.model.entity.InspectionTable;
-import com.tool.otsutil.service.InspectionService;
+import com.tool.otsutil.service.impl.InspectionService;
 import com.tool.otsutil.service.InspectionTableService;
-import com.tool.otsutil.service.TuMoStatisticsService;
+import com.tool.otsutil.service.impl.TuMoStatisticsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -115,12 +114,17 @@ public class InspectionController {
 		inspectionService.exportInspectionToExcel(fileName, "服务器资源占用巡检");
 	}
 
-//	@Scheduled(cron = "0 0/30 * * * ?") // 每30分钟执行一次
-//	public void exportInspectionByHour() throws Exception {
-//		inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
-//	}
+	@Scheduled(cron = "0 0 0/3 * * ?") // 每3小时执行一次
+	public void exportInspectionByHour() throws Exception {
+		inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
+	}
 
 	@Scheduled(cron = "0 0 8,17 * * ?") // 每天上午8点和下午5点执行
+	public void exportJavaInspectionByScheduled() throws Exception {
+		inspectionService.exportJavaInspectionToExcel(fileName);
+	}
+
+	@GetMapping("/exportJavaInspection")
 	public void exportJavaInspection() throws Exception {
 		inspectionService.exportJavaInspectionToExcel(fileName);
 	}
