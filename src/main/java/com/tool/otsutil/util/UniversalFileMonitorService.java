@@ -87,7 +87,7 @@ public class UniversalFileMonitorService {
 
 			monitorTasks.put(config.getId(), future);
 
-			// 启动文件系统监听（可选）
+			// 启动文件系统监听（可选），不用这个了
 			//startFileSystemWatch(config);
 
 			log.info("启动文件监控: {} -> {}", config.getId(), config.getDirectory());
