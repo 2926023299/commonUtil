@@ -53,6 +53,7 @@ public class FileMonitorStarter {
 						props.getMaxConcurrent() : properties.getDefaultMaxConcurrent())
 				.stabilityThreshold(props.getStabilityThreshold() != null ?
 						props.getStabilityThreshold() : properties.getDefaultStabilityThreshold())
+				.customProperties(props.getCustomProperties())
 				.build();
 	}
 }

@@ -5,9 +5,10 @@ import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.common.ResponseResult;
 import com.tool.otsutil.model.dto.inspection.InspectionPage;
 import com.tool.otsutil.model.entity.InspectionTable;
-import com.tool.otsutil.service.impl.InspectionService;
-import com.tool.otsutil.service.InspectionTableService;
-import com.tool.otsutil.service.impl.TuMoStatisticsService;
+import com.tool.otsutil.service.InspectionImpl.InspectionService;
+import com.tool.otsutil.service.InspectionImpl.InspectionTableService;
+import com.tool.otsutil.service.InspectionImpl.TuMoStatisticsService;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -114,7 +115,7 @@ public class InspectionController {
 		inspectionService.exportInspectionToExcel(fileName, "服务器资源占用巡检");
 	}
 
-	@Scheduled(cron = "0 0 0/3 * * ?") // 每3小时执行一次
+	@Scheduled(cron = "0 0 0/6 * * ?") // 每6小时执行一次
 	public void exportInspectionByHour() throws Exception {
 		inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
 	}
@@ -164,7 +165,6 @@ public class InspectionController {
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 		// 格式化日期
 		String date = previousDate.format(formatter);
-
 
 		// 获取中压和低压统计数据
 		Map<String, Integer> zyStatistics = tuMoStatisticsService.getZyStatistics(date);

@@ -2,9 +2,10 @@ package com.tool.otsutil.util;
 
 import com.tool.otsutil.config.FileMonitorConfig;
 import com.tool.otsutil.model.fileProcess.ProcessingResult;
+import com.tool.otsutil.service.FileProcessor;
 import com.tool.otsutil.model.fileProcess.FileEvent;
 import com.tool.otsutil.model.fileProcess.FileEventType;
-import com.tool.otsutil.service.FileProcessor;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -44,7 +45,6 @@ public class UniversalFileMonitorService {
 	// 文件观察服务（用于实时监控）
 	private final Map<String, WatchService> watchServices = new ConcurrentHashMap<>();
 
-	@Autowired
 	public UniversalFileMonitorService(ApplicationEventPublisher eventPublisher,
 									   FileProcessingStatusService statusService) {
 		this.eventPublisher = eventPublisher;
@@ -292,7 +292,7 @@ public class UniversalFileMonitorService {
 	/**
 	 * 使用处理器处理文件
 	 */
-	private void processFileWithProcessors(String filePath, FileEvent event,
+	private void processFileWithProcessors(String filePath, FileEvent event, 
 										   List<FileProcessor> processors, FileMonitorConfig config) {
 		// 标记处理开始
 		statusService.startProcessing(filePath);
@@ -310,7 +310,7 @@ public class UniversalFileMonitorService {
 				if (result.isSuccess()) {
 					log.info("处理器 {} 处理成功: {}", processor.getName(), filePath);
 				} else {
-					log.error("处理器 {} 处理失败: {} - {}",
+					log.error("处理器 {} 处理失败: {} - {}", 
 							processor.getName(), filePath, result.getMessage());
 					triggerFileEvent(Paths.get(filePath), config, FileEventType.PROCESS_FAILED);
 				}
@@ -326,9 +326,11 @@ public class UniversalFileMonitorService {
 		statusService.completeProcessing(filePath, results);
 		triggerFileEvent(Paths.get(filePath), config, FileEventType.PROCESS_COMPLETED);
 
-		log.info("文件处理完成: {}, 结果: {}", filePath,
+		log.info("文件处理完成: {}, 结果: {}", filePath, 
 				results.stream().filter(ProcessingResult::isSuccess).count() + "/" + results.size());
 	}
+
+
 
 	/**
 	 * 查找匹配的处理器

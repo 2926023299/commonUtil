@@ -7,7 +7,8 @@ import com.tool.otsutil.model.dto.ApiDto.ApiResponse;
 import com.tool.otsutil.model.dto.ApiDto.AutoFeederRate;
 import com.tool.otsutil.model.dto.ApiDto.OnlineRate;
 import com.tool.otsutil.model.dto.ApiDto.RemoteSuccessRate;
-import com.tool.otsutil.service.impl.ApiService;
+import com.tool.otsutil.service.api.ApiService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;

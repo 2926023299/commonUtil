@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-CommonUtilApplication<CommonUtil>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.tool.otsutil.CommonUtilApplication",
+            "projectName": "CommonUtil",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

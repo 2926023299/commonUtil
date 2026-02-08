@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tool.otsutil.mapper.NewconnectivitynodeBMapper">
+
+
+    <!--private BigDecimal Equipment_ID;
+    private BigDecimal Sequence;
+    private BigDecimal ID;
+    private String Name;
+    private String AliasName;
+    private String Description;
+    private String TerminalRdfID;
+    private BigDecimal Substation_ID;
+    private BigDecimal VoltageLevel_ID;
+    private BigDecimal MultSrcFlag;
+    private BigDecimal PhaseCode;
+    private BigDecimal DeleteFlag;-->
+
+    <!-- 批量替换插入 -->
+    <insert id="batchReplaceInsert" parameterType="java.util.List">
+        replace into ies_ms.newconnectivitynode_b (
+            ID, Sequence, Equipment_ID, MultSrcFlag
+        )
+        values
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.ID}, #{item.Sequence}, #{item.Equipment_ID}, #{item.MultSrcFlag}
+            )
+        </foreach>
+    </insert>
+</mapper>

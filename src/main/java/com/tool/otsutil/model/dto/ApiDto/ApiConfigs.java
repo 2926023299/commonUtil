@@ -9,7 +9,6 @@ public class ApiConfigs {
     private static final Map<String, ApiConfig> configs = new HashMap<>();
 
     static {
-
         //全自动馈线投入率
         configs.put("autoFeederRates", new ApiConfig(
                 "http://25.86.162.57/devInfo-gateway/iesweb-rtuinfo/autoFeederCoverageRate/getAutoFeederInvestedRates?areaId=0&monthDate={1}",

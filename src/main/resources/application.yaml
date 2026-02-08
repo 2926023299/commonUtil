@@ -18,9 +18,9 @@ spring:
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
+    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     # 在映射实体或属性时，将数据库中的下划线转换为驼峰命名
     map-underscore-to-camel-case: false
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: assign_id
@@ -80,22 +80,48 @@ app:
       default-max-concurrent: 5
       default-stability-threshold: 10000
       configs:
-        - id: csv-uploads
-          directory: C:\\Users\\29260\\Desktop\\工作\\csv\\
-          file-pattern: "*.csv"
-          check-interval: 10
-          stability-threshold: 2000
+        # - id: csv-uploads
+        #   directory: C:\Users\29260\Desktop\工作\csv\
+        #   file-pattern: "*.csv"
+        #   check-interval: 10
+        #   stability-threshold: 2000
         - id: jar-uploads
-          directory: C:\\Users\\29260\\Desktop\\工作\\jar\\
+          directory: C:\Users\29260\Desktop\工作\jar\
           file-pattern: "*.jar"
           recursive: false
           check-interval: 15
           stability-threshold: 5000
         - id: nginx-uploads
-          directory: C:\\Users\\29260\\Desktop\\工作\\jar\\
+          directory: C:\Users\29260\Desktop\工作\jar\
           file-pattern: "*.zip"
           recursive: false
           check-interval: 15
+          stability-threshold: 5000
+        - id: topo-uploads
+          directory: C:\Users\29260\Desktop\工作\topo\
+          customProperties:
+            encoding: GBK
+          file-pattern: "*.inf"
+          recursive: false
+          check-interval: 10
+          stability-threshold: 5000
+        - id: xs-topo-uploads
+          directory: C:\Users\29260\Desktop\工作\topo\
+          file-pattern: "*.log"
+          recursive: false
+          check-interval: 10
+          stability-threshold: 5000
+        # - id: breaker-energy-uploads
+        #   directory: C:\Users\29260\Desktop\工作\energy\
+        #   file-pattern: "*.txt"
+        #   recursive: false
+        #   check-interval: 10
+        #   stability-threshold: 5000
+        - id: connectivity-uploads
+          directory: C:\Users\29260\Desktop\工作\energy\
+          file-pattern: "*.xlsx"
+          recursive: false
+          check-interval: 10
           stability-threshold: 5000
 
 

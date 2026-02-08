@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @ConfigurationProperties(prefix = "app.file.monitor")
@@ -24,5 +25,6 @@ public class FileMonitorProperties {
 		private Integer checkInterval;
 		private Integer maxConcurrent;
 		private Long stabilityThreshold;
+		private Map<String, Object> customProperties;
 	}
 }
