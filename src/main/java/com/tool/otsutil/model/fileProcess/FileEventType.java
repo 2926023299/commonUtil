@@ -11,5 +11,6 @@ public enum FileEventType {
 	UPLOAD_COMPLETED, // 上传完成
 	PROCESS_STARTED,  // 处理开始
 	PROCESS_COMPLETED,// 处理完成
-	PROCESS_FAILED    // 处理失败
+	PROCESS_FAILED,   // 处理失败
+	PROCESS_IGNORED   // 处理忽略
 }

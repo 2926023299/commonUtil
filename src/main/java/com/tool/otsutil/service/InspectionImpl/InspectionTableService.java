@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.tool.otsutil.model.dto.inspection.InspectionPage;
 import com.tool.otsutil.model.entity.InspectionTable;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 public interface InspectionTableService extends IService<InspectionTable> {
 
 	/**
@@ -30,4 +33,10 @@ public interface InspectionTableService extends IService<InspectionTable> {
 	 * @return 检查页面信息
 	 */
 	Page<InspectionTable> getInspectionPageByIp(InspectionPage inspectionPage);
+
+	List<InspectionTable> listLatestInspectionTable(String ip, String updateTime, Integer status);
+
+	InspectionTable getInspectionByIp(String ip, LocalDateTime updateTime);
+
+	List<InspectionTable> getRecentInspectionByIp(String ip, int limit);
 }

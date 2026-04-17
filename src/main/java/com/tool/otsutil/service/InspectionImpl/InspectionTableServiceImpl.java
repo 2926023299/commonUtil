@@ -6,12 +6,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tool.otsutil.model.dto.inspection.InspectionPage;
 import com.tool.otsutil.model.entity.InspectionTable;
 import com.tool.otsutil.mapper.InspectionTableMapper;
+import com.tool.otsutil.util.InspectionViewSupport;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 
@@ -50,11 +50,15 @@ public class InspectionTableServiceImpl extends ServiceImpl<InspectionTableMappe
 
 	@Override
 	public InspectionTable getInspectionByIp(String ip, String update) {
+		LocalDateTime updateTime = InspectionViewSupport.parseDateTime(update);
+		return getInspectionByIp(ip, updateTime);
+	}
+
+	@Override
+	public InspectionTable getInspectionByIp(String ip, LocalDateTime updateTime) {
 		LambdaQueryWrapper<InspectionTable> queryWrapper = new LambdaQueryWrapper<>();
 		queryWrapper.eq(InspectionTable::getIP, ip);
-		if (update != null && !update.isEmpty()) {
-			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/M/d H:mm:ss");
-			LocalDateTime updateTime = LocalDateTime.parse(update, formatter);
+		if (updateTime != null) {
 			queryWrapper.eq(InspectionTable::getUpdateTime, updateTime);
 		}
 		return this.getOne(queryWrapper);
@@ -74,5 +78,22 @@ public class InspectionTableServiceImpl extends ServiceImpl<InspectionTableMappe
 		this.page(page, queryWrapper);
 
 		return page;
+	}
+
+	@Override
+	public List<InspectionTable> listLatestInspectionTable(String ip, String updateTime, Integer status) {
+		return baseMapper.selectLatestByIpWithCondition(ip, updateTime, status);
+	}
+
+	@Override
+	public List<InspectionTable> getRecentInspectionByIp(String ip, int limit) {
+		int safeLimit = limit <= 0 ? 1 : limit;
+
+		LambdaQueryWrapper<InspectionTable> queryWrapper = new LambdaQueryWrapper<>();
+		queryWrapper.eq(InspectionTable::getIP, ip);
+		queryWrapper.orderByDesc(InspectionTable::getUpdateTime);
+		queryWrapper.last("LIMIT " + safeLimit);
+
+		return this.list(queryWrapper);
 	}
 }

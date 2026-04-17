@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.tool.otsutil.mapper.TopoDeviceMapper">
-    <select id="selectDeviceInfoByIds" parameterType="java.util.List" resultType="java.util.Map">
-        SELECT 
-            ids.id, 
-            t.name AS device_name, 
-            f.name AS feeder_name
+    <select id="selectDeviceInfoByIds" parameterType="java.util.List" resultType="com.tool.otsutil.model.dto.TopoDeviceRecord">
+        SELECT
+            ids.id,
+            t.name AS deviceName,
+            f.name AS feederName
         FROM (
             <foreach collection="ids" item="id" separator="UNION ALL">
                 SELECT #{id} AS id
@@ -58,5 +58,16 @@
             </foreach>
         ) t ON ids.id = t.id
         LEFT JOIN ies_ms.feeder_b f ON t.feeder_id = f.id
+    </select>
+
+    <select id="selectFeederInfoByIds" parameterType="java.util.List" resultType="com.tool.otsutil.model.dto.TopoFeederRecord">
+        SELECT
+            f.id,
+            f.name
+        FROM ies_ms.feeder_b f
+        WHERE f.id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </select>
 </mapper>

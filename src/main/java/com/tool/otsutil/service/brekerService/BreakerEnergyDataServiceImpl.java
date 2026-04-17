@@ -1,11 +1,11 @@
 package com.tool.otsutil.service.brekerService;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tool.otsutil.mapper.BreakerEnergyDataMapper;
 import com.tool.otsutil.model.entity.BreakerEnergyData;
-
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.List;
@@ -15,43 +15,47 @@ import java.util.List;
  */
 @Service
 public class BreakerEnergyDataServiceImpl extends ServiceImpl<BreakerEnergyDataMapper, BreakerEnergyData> implements BreakerEnergyDataService {
-    
+
     @Override
     public List<BreakerEnergyData> queryData(String breakerId, Integer dataType, Integer cityCode, Integer limit) {
-        QueryWrapper<BreakerEnergyData> queryWrapper = new QueryWrapper<>();
-        
-        if (breakerId != null && !breakerId.isEmpty()) {
-            queryWrapper.eq("breaker_id", breakerId);
+        LambdaQueryWrapper<BreakerEnergyData> queryWrapper = new LambdaQueryWrapper<>();
+
+        if (StringUtils.hasText(breakerId)) {
+            queryWrapper.eq(BreakerEnergyData::getBreakerId, breakerId);
         }
-        
+
         if (dataType != null) {
-            queryWrapper.eq("data_type", dataType);
+            queryWrapper.eq(BreakerEnergyData::getDataType, dataType);
         }
-        
+
         if (cityCode != null) {
-            queryWrapper.eq("city_code", cityCode);
+            queryWrapper.eq(BreakerEnergyData::getCityCode, cityCode);
         }
-        
-        queryWrapper.orderByDesc("data_time");
-        queryWrapper.last("LIMIT " + limit);
-        
+
+        queryWrapper.orderByDesc(BreakerEnergyData::getDataTime);
+        if (limit != null && limit > 0) {
+            queryWrapper.last("LIMIT " + limit);
+        }
+
         return list(queryWrapper);
     }
-    
+
     @Override
     public List<BreakerEnergyData> queryDataByDateRange(Date startDate, Date endDate) {
-        QueryWrapper<BreakerEnergyData> queryWrapper = new QueryWrapper<>();
-        
+        LambdaQueryWrapper<BreakerEnergyData> queryWrapper = new LambdaQueryWrapper<>();
+
         if (startDate != null) {
-            queryWrapper.ge("file_time", startDate);
+            queryWrapper.ge(BreakerEnergyData::getFileTime, startDate);
         }
-        
+
         if (endDate != null) {
-            queryWrapper.le("file_time", endDate);
+            queryWrapper.le(BreakerEnergyData::getFileTime, endDate);
         }
-        
-        queryWrapper.orderByAsc("file_time", "breaker_id", "data_type");
-        
+
+        queryWrapper.orderByAsc(BreakerEnergyData::getFileTime)
+                .orderByAsc(BreakerEnergyData::getBreakerId)
+                .orderByAsc(BreakerEnergyData::getDataType);
+
         return list(queryWrapper);
     }
 }

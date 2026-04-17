@@ -4,8 +4,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.common.ResponseResult;
 import com.tool.otsutil.model.dto.inspection.InspectionPage;
+import com.tool.otsutil.model.dto.inspection.JavaInspectionListRequest;
+import com.tool.otsutil.model.dto.inspection.ServerHistoryRequest;
+import com.tool.otsutil.model.dto.inspection.ServerInspectionListRequest;
 import com.tool.otsutil.model.entity.InspectionTable;
+import com.tool.otsutil.model.vo.inspection.DashboardSummaryView;
+import com.tool.otsutil.model.vo.inspection.JavaInspectionDetailView;
+import com.tool.otsutil.model.vo.inspection.JavaInspectionView;
+import com.tool.otsutil.model.vo.inspection.PageResponse;
+import com.tool.otsutil.model.vo.inspection.ServerInspectionView;
+import com.tool.otsutil.model.vo.inspection.TopologySummaryView;
 import com.tool.otsutil.service.InspectionImpl.InspectionService;
+import com.tool.otsutil.service.InspectionImpl.InspectionQueryService;
 import com.tool.otsutil.service.InspectionImpl.InspectionTableService;
 import com.tool.otsutil.service.InspectionImpl.TuMoStatisticsService;
 
@@ -39,6 +49,9 @@ public class InspectionController {
 	@Autowired
 	private InspectionTableService inspectionTableService;
 
+	@Autowired
+	private InspectionQueryService inspectionQueryService;
+
 
 	/**
 	 * 获取巡检清单结果，数据库分页查询
@@ -63,6 +76,12 @@ public class InspectionController {
 	public ResponseResult saveInspection() {
 		inspectionService.performInspection();
 		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "保存成功");
+	}
+
+	@PostMapping("/server/run")
+	public ResponseResult triggerServerInspection() {
+		inspectionService.performInspection();
+		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "巡检已执行");
 	}
 
 	//根据IP获取该ip的历史查询记录
@@ -101,6 +120,41 @@ public class InspectionController {
 		return ResponseResult.okResult(result);
 	}
 
+	@GetMapping("/dashboard")
+	public ResponseResult<DashboardSummaryView> getDashboardSummary() {
+		return ResponseResult.okResult(inspectionQueryService.getDashboardSummary());
+	}
+
+	@PostMapping("/server/list")
+	public ResponseResult<PageResponse<ServerInspectionView>> getServerInspectionList(@RequestBody ServerInspectionListRequest request) {
+		return ResponseResult.okResult(inspectionQueryService.getServerInspectionList(request));
+	}
+
+	@GetMapping("/server/detail")
+	public ResponseResult<ServerInspectionView> getServerInspectionDetail(@RequestParam String ip, @RequestParam String updateTime) {
+		return ResponseResult.okResult(inspectionQueryService.getServerInspectionDetail(ip, updateTime));
+	}
+
+	@PostMapping("/server/history")
+	public ResponseResult<PageResponse<ServerInspectionView>> getServerInspectionHistory(@RequestBody ServerHistoryRequest request) {
+		return ResponseResult.okResult(inspectionQueryService.getServerInspectionHistory(request));
+	}
+
+	@PostMapping("/java/list")
+	public ResponseResult<PageResponse<JavaInspectionView>> getJavaInspectionList(@RequestBody JavaInspectionListRequest request) {
+		return ResponseResult.okResult(inspectionQueryService.getJavaInspectionList(request));
+	}
+
+	@GetMapping("/java/detail")
+	public ResponseResult<JavaInspectionDetailView> getJavaInspectionDetail(@RequestParam String ip) {
+		return ResponseResult.okResult(inspectionQueryService.getJavaInspectionDetail(ip));
+	}
+
+	@GetMapping("/topology/summary")
+	public ResponseResult<TopologySummaryView> getTopologySummary() {
+		return ResponseResult.okResult(inspectionQueryService.getTopologySummary());
+	}
+
 
 	// 导出服务器巡检结果到excel
 	@GetMapping("/exportServer")
@@ -108,6 +162,12 @@ public class InspectionController {
 		inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
 
 		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "导出成功\n");
+	}
+
+	@GetMapping("/server/export")
+	public ResponseResult exportServerInspectionResults() throws Exception {
+		inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
+		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "服务器巡检结果已导出");
 	}
 
 	@Scheduled(cron = "0 12 10 * * ?") // 每天早上8点12分执行
@@ -128,6 +188,12 @@ public class InspectionController {
 	@GetMapping("/exportJavaInspection")
 	public void exportJavaInspection() throws Exception {
 		inspectionService.exportJavaInspectionToExcel(fileName);
+	}
+
+	@GetMapping("/java/export")
+	public ResponseResult exportJavaInspectionResult() throws Exception {
+		inspectionService.exportJavaInspectionToExcel(fileName);
+		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "Java巡检结果已导出");
 	}
 
 	@Scheduled(cron = "0 0 2 * * ?") // 每天凌晨执行一次
@@ -174,5 +240,21 @@ public class InspectionController {
 		tuMoStatisticsService.exportStatisticsToExcel(fileName, zyStatistics, dyStatistics);
 
 		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "导出成功");
+	}
+
+	@GetMapping("/topology/export")
+	public ResponseResult exportTopologyStatisticsResult() {
+
+		LocalDate currentDate = LocalDate.now();
+		LocalDate previousDate = currentDate.minusDays(1);
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+		String date = previousDate.format(formatter);
+
+		Map<String, Integer> zyStatistics = tuMoStatisticsService.getZyStatistics(date);
+		Map<String, Integer> dyStatistics = tuMoStatisticsService.getDyStatistics(date);
+
+		tuMoStatisticsService.exportStatisticsToExcel(fileName, zyStatistics, dyStatistics);
+
+		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "图模统计结果已导出");
 	}
 }

@@ -37,7 +37,7 @@ ots:
 
 # excel导出路径
 excel:
-  export-path: C:\\Users\\29260\\Desktop\\工作\\
+  export-path: C:\\Users\\GXL\\Desktop\\工作\\
   file-name: 四区主站-中压-巡检记录表2025.xlsx
 
   #export-path: C:\\Users\\Administrator\\Desktop\\工作\\
@@ -45,8 +45,8 @@ excel:
 # 图模文件路径
 tumo:
   paths:
-    zytumo: C:\\Users\\29260\\Desktop\\工作\\zytumo\\{date}\\
-    dytumo: C:\\Users\\29260\\Desktop\\工作\\dytumo\\{date}\\
+    zytumo: C:\\Users\\GXL\\Desktop\\工作\\zytumo\\{date}\\
+    dytumo: C:\\Users\\GXL\\Desktop\\工作\\dytumo\\{date}\\
 city:
   cities:
     35401: 福州
@@ -86,19 +86,19 @@ app:
         #   check-interval: 10
         #   stability-threshold: 2000
         - id: jar-uploads
-          directory: C:\Users\29260\Desktop\工作\jar\
+          directory: C:\Users\GXL\Desktop\工作\jar\
           file-pattern: "*.jar"
           recursive: false
           check-interval: 15
           stability-threshold: 5000
         - id: nginx-uploads
-          directory: C:\Users\29260\Desktop\工作\jar\
+          directory: C:\Users\GXL\Desktop\工作\jar\
           file-pattern: "*.zip"
           recursive: false
           check-interval: 15
           stability-threshold: 5000
         - id: topo-uploads
-          directory: C:\Users\29260\Desktop\工作\topo\
+          directory: C:\Users\GXL\Desktop\工作\topo\
           customProperties:
             encoding: GBK
           file-pattern: "*.inf"
@@ -106,19 +106,19 @@ app:
           check-interval: 10
           stability-threshold: 5000
         - id: xs-topo-uploads
-          directory: C:\Users\29260\Desktop\工作\topo\
+          directory: C:\Users\GXL\Desktop\工作\topo\
           file-pattern: "*.log"
           recursive: false
           check-interval: 10
           stability-threshold: 5000
         # - id: breaker-energy-uploads
-        #   directory: C:\Users\29260\Desktop\工作\energy\
+        #   directory: C:\Users\GXL\Desktop\工作\energy\
         #   file-pattern: "*.txt"
         #   recursive: false
         #   check-interval: 10
         #   stability-threshold: 5000
         - id: connectivity-uploads
-          directory: C:\Users\29260\Desktop\工作\energy\
+          directory: C:\Users\GXL\Desktop\工作\energy\
           file-pattern: "*.xlsx"
           recursive: false
           check-interval: 10
@@ -127,7 +127,7 @@ app:
 
 jar:
   scan:
-    path: C:\\Users\\29260\\Desktop\\工作\\jar\\
+    path: C:\\Users\\GXL\\Desktop\\工作\\jar\\
   target:
     path: /home/ies/webserver/dmscld/bin/
   nginx:

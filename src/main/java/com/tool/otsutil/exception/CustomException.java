@@ -6,16 +6,15 @@ import lombok.Getter;
 public class CustomException extends RuntimeException {
 
     @Getter
-    private AppHttpCodeEnum appHttpCodeEnum;
-    @Getter
-    private String message;
+    private final AppHttpCodeEnum appHttpCodeEnum;
 
-    public CustomException(AppHttpCodeEnum appHttpCodeEnum){
+    public CustomException(AppHttpCodeEnum appHttpCodeEnum) {
+        super(appHttpCodeEnum.getMessage());
         this.appHttpCodeEnum = appHttpCodeEnum;
     }
 
-    public CustomException(AppHttpCodeEnum appHttpCodeEnum, String smg){
+    public CustomException(AppHttpCodeEnum appHttpCodeEnum, String message) {
+        super(message);
         this.appHttpCodeEnum = appHttpCodeEnum;
-        this.message = smg;
     }
 }
