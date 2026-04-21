@@ -390,7 +390,7 @@ public class JarDeployService {
 
 				log.info("[文件上传] 文件 {} 上传到服务器 {} 成功。", jarFile.getName(), ip);
 
-				if (jarFile.getName().equals("dmscldpro") || jarFile.getName().equals("dmsweb") || jarFile.getName().equals("dmscldprotest")) {
+				if (jarFile.getName().equals("dmscldpro")|| jarFile.getName().equals("dmscloud") || jarFile.getName().equals("dmsweb") || jarFile.getName().equals("dmscldprotest")) {
 					try {
 						inspectionService.executeCommand(sshClient, "cp  " + backupPath + "/config.js" + " " + filePath);
 					} catch (Exception e) {

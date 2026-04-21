@@ -8,6 +8,7 @@ import com.tool.otsutil.model.dto.inspection.ServerInspectionListRequest;
 import com.tool.otsutil.model.entity.InspectionTable;
 import com.tool.otsutil.model.vo.inspection.DashboardSummaryView;
 import com.tool.otsutil.model.vo.inspection.JavaInspectionDetailView;
+import com.tool.otsutil.model.vo.inspection.JavaInspectionSummaryView;
 import com.tool.otsutil.model.vo.inspection.JavaInspectionView;
 import com.tool.otsutil.model.vo.inspection.JavaProcessDiffView;
 import com.tool.otsutil.model.vo.inspection.PageResponse;
@@ -127,6 +128,29 @@ public class InspectionQueryService {
 
     public PageResponse<JavaInspectionView> getJavaInspectionList(JavaInspectionListRequest request) {
         List<InspectionTable> latestRecords = inspectionTableService.listLatestInspectionTable(request.getIp(), null, request.getStatus());
+        String normalizedProgramName = normalizeKeyword(request.getProgramName());
+        String normalizedStability = normalizeKeyword(request.getStability());
+
+        List<InspectionTable> filteredRecords = new ArrayList<InspectionTable>();
+        for (InspectionTable record : latestRecords) {
+            JavaProcessDiffView diffView = buildJavaDiff(record);
+
+            if (!normalizedProgramName.isEmpty() && findMatchedProcesses(record.getJAVA_PROCESSES(), normalizedProgramName).isEmpty()) {
+                continue;
+            }
+
+            if ("stable".equals(normalizedStability) && hasDiff(diffView)) {
+                continue;
+            }
+
+            if ("changed".equals(normalizedStability) && !hasDiff(diffView)) {
+                continue;
+            }
+
+            filteredRecords.add(record);
+        }
+
+        latestRecords = filteredRecords;
         latestRecords.sort(new Comparator<InspectionTable>() {
             @Override
             public int compare(InspectionTable left, InspectionTable right) {
@@ -150,7 +174,7 @@ public class InspectionQueryService {
 
         List<JavaInspectionView> records = new ArrayList<JavaInspectionView>();
         for (InspectionTable record : latestRecords.subList(start, end)) {
-            records.add(toJavaInspectionView(record));
+            records.add(toJavaInspectionView(record, normalizedProgramName));
         }
         response.setRecords(records);
         return response;
@@ -179,6 +203,21 @@ public class InspectionQueryService {
         }
 
         view.setDiff(InspectionViewSupport.diffJavaProcesses(view.getCurrentProcesses(), view.getPreviousProcesses()));
+        return view;
+    }
+
+    public JavaInspectionSummaryView getJavaInspectionSummary() {
+        List<InspectionTable> latestRecords = inspectionTableService.listLatestInspectionTable(null, null, null);
+        JavaInspectionSummaryView view = new JavaInspectionSummaryView();
+        view.setServerCount(latestRecords.size());
+
+        for (InspectionTable record : latestRecords) {
+            view.setProcessCount(view.getProcessCount() + InspectionViewSupport.splitJavaProcesses(record.getJAVA_PROCESSES()).size());
+            if (hasDiff(buildJavaDiff(record))) {
+                view.setChangedCount(view.getChangedCount() + 1);
+            }
+        }
+
         return view;
     }
 
@@ -229,26 +268,54 @@ public class InspectionQueryService {
         return view;
     }
 
-    private JavaInspectionView toJavaInspectionView(InspectionTable currentRecord) {
+    private JavaInspectionView toJavaInspectionView(InspectionTable currentRecord, String normalizedProgramName) {
         JavaInspectionView view = new JavaInspectionView();
         view.setIp(currentRecord.getIP());
         view.setUpdateTime(InspectionViewSupport.formatDateTime(currentRecord.getUpdateTime()));
         view.setStatus(currentRecord.getStatus());
         view.setDescription(currentRecord.getDescription());
         view.setJavaProcesses(InspectionViewSupport.splitJavaProcesses(currentRecord.getJAVA_PROCESSES()));
+        view.setMatchedProcesses(findMatchedProcesses(currentRecord.getJAVA_PROCESSES(), normalizedProgramName));
         view.setJavaProcessCount(view.getJavaProcesses().size());
 
-        List<InspectionTable> recentRecords = inspectionTableService.getRecentInspectionByIp(currentRecord.getIP(), 2);
-        InspectionTable previousRecord = recentRecords.size() > 1 ? recentRecords.get(1) : null;
-        JavaProcessDiffView diffView = InspectionViewSupport.diffJavaProcesses(
-                currentRecord.getJAVA_PROCESSES(),
-                previousRecord == null ? null : previousRecord.getJAVA_PROCESSES()
-        );
+        JavaProcessDiffView diffView = buildJavaDiff(currentRecord);
 
         view.setAddedProcesses(diffView.getAddedProcesses());
         view.setRemovedProcesses(diffView.getRemovedProcesses());
-        view.setHasDiff(!diffView.getAddedProcesses().isEmpty() || !diffView.getRemovedProcesses().isEmpty());
+        view.setHasDiff(hasDiff(diffView));
         return view;
+    }
+
+    private JavaProcessDiffView buildJavaDiff(InspectionTable currentRecord) {
+        List<InspectionTable> recentRecords = inspectionTableService.getRecentInspectionByIp(currentRecord.getIP(), 2);
+        InspectionTable previousRecord = recentRecords.size() > 1 ? recentRecords.get(1) : null;
+        return InspectionViewSupport.diffJavaProcesses(
+                currentRecord.getJAVA_PROCESSES(),
+                previousRecord == null ? null : previousRecord.getJAVA_PROCESSES()
+        );
+    }
+
+    private boolean hasDiff(JavaProcessDiffView diffView) {
+        return !diffView.getAddedProcesses().isEmpty() || !diffView.getRemovedProcesses().isEmpty();
+    }
+
+    private List<String> findMatchedProcesses(String rawProcesses, String normalizedProgramName) {
+        List<String> matchedProcesses = new ArrayList<String>();
+        if (normalizedProgramName == null || normalizedProgramName.isEmpty()) {
+            return matchedProcesses;
+        }
+
+        for (String process : InspectionViewSupport.splitJavaProcesses(rawProcesses)) {
+            if (process.toLowerCase().contains(normalizedProgramName)) {
+                matchedProcesses.add(process);
+            }
+        }
+
+        return matchedProcesses;
+    }
+
+    private String normalizeKeyword(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
     }
 
     private TopologySummaryView buildTopologySummary() {

@@ -12,6 +12,7 @@ public class JavaInspectionView {
     private Integer status;
     private String description;
     private List<String> javaProcesses = new ArrayList<String>();
+    private List<String> matchedProcesses = new ArrayList<String>();
     private int javaProcessCount;
     private boolean hasDiff;
     private List<String> addedProcesses = new ArrayList<String>();

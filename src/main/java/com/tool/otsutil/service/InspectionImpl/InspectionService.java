@@ -41,6 +41,9 @@ public class InspectionService {
 	@Autowired
 	private InspectionTableMapper inspectionTableMapper;
 
+	@Autowired
+	private InspectionTableService inspectionTableService;
+
 	//进行各个服务器命令巡检
 	public LinkedHashMap<String, InspectionResult> performInspection() {
 		List<ServerConfig> servers = getServerConfigs();
@@ -224,6 +227,15 @@ public class InspectionService {
 		log.info("服务器资源巡检结果导出成功");
 	}
 
+	public void exportLatestInspectionToExcel(String fileName, String sheetName) throws Exception {
+		List<InspectionTable> latestRecords = getLatestInspectionRecords();
+		LinkedHashMap<String, InspectionResult> inspectionResultMap = buildInspectionResultMap(latestRecords);
+		Map<String, LinkedList<String>> headers = buildDynamicHeaders(latestRecords);
+
+		excelExportUtil.exportInspectionToExcel(fileName, sheetName, headers, inspectionResultMap);
+		log.info("服务器资源巡检最新快照导出成功");
+	}
+
 	//获取ssh连接
 	public SSHClient connectToServer(ServerConfig server) throws IOException {
 		SSHClient sshClient = null;
@@ -343,5 +355,95 @@ public class InspectionService {
 		inspectionResultMap.forEach((key, value) -> {
 			log.info("导出ip:{}, java:{}", value.getResultInfo().get(InspectionCommon.IP), value.getResultInfo().get(InspectionCommon.JAVA_PROCESSES));
 		});
+	}
+
+	public void exportLatestJavaInspectionToExcel(String fileName) throws Exception {
+		LinkedHashMap<String, InspectionResult> inspectionResultMap = buildInspectionResultMap(getLatestInspectionRecords());
+
+		excelExportUtil.exportJavaInspectionToExcel(fileName, inspectionResultMap);
+		inspectionResultMap.forEach((key, value) -> {
+			log.info("导出最新快照ip:{}, java:{}", value.getResultInfo().get(InspectionCommon.IP), value.getResultInfo().get(InspectionCommon.JAVA_PROCESSES));
+		});
+	}
+
+	private List<InspectionTable> getLatestInspectionRecords() {
+		List<InspectionTable> latestRecords = inspectionTableService.listLatestInspectionTable(null, null, null);
+		latestRecords.sort(Comparator.comparing(InspectionTable::getIP));
+		return latestRecords;
+	}
+
+	private LinkedHashMap<String, InspectionResult> buildInspectionResultMap(List<InspectionTable> latestRecords) {
+		LinkedHashMap<String, InspectionResult> inspectionResultMap = new LinkedHashMap<String, InspectionResult>();
+		for (InspectionTable record : latestRecords) {
+			Map<String, String> result = new HashMap<String, String>();
+			result.put(InspectionCommon.IP, record.getIP());
+			result.put(InspectionCommon.CPU_USAGE, defaultString(record.getCPU_USAGE()));
+			result.put(InspectionCommon.MEMORY_USAGE_RATE, defaultString(record.getMEMORY_USAGE_RATE()));
+			result.put(InspectionCommon.MEMORY_USAGE, joinUsage(record.getMEMORY_USAGE(), record.getMEMORY_TOTAL()));
+			result.put(InspectionCommon.DISK_USAGE_RATE, defaultString(record.getDISK_USAGE_RATE()));
+			result.put(InspectionCommon.DISK_USAGE, joinUsage(record.getDISK_USAGE(), record.getDISK_TOTAL()));
+			result.put(InspectionCommon.THREAD_COUNT, defaultString(record.getTHREAD_COUNT()));
+			result.put(InspectionCommon.JAVA_PROCESSES, defaultString(record.getJAVA_PROCESSES()));
+			result.put(InspectionCommon.MEMORY_TOTAL, defaultString(record.getMEMORY_TOTAL()));
+			result.put(InspectionCommon.DISK_TOTAL, defaultString(record.getDISK_TOTAL()));
+			result.put(InspectionCommon.SECOND_DISK_USAGE_RATE, defaultString(record.getSECOND_DISK_USAGE_RATE()));
+			result.put(InspectionCommon.SECOND_DISK_USAGE, joinUsage(record.getSECOND_DISK_USAGE(), record.getSECOND_DISK_TOTAL()));
+			result.put(InspectionCommon.SECOND_DISK_TOTAL, defaultString(record.getSECOND_DISK_TOTAL()));
+			result.put(InspectionCommon.THIRD_DISK_USAGE_RATE, defaultString(record.getTHIRD_DISK_USAGE_RATE()));
+			result.put(InspectionCommon.THIRD_SECOND_DISK_USAGE, joinUsage(record.getTHIRD_DISK_USAGE(), record.getTHIRD_DISK_TOTAL()));
+			result.put(InspectionCommon.THIRD_SECOND_DISK_TOTAL, defaultString(record.getTHIRD_DISK_TOTAL()));
+
+			inspectionResultMap.put(record.getIP(), new InspectionResult(result));
+		}
+
+		return inspectionResultMap;
+	}
+
+	private Map<String, LinkedList<String>> buildDynamicHeaders(List<InspectionTable> latestRecords) {
+		Map<String, LinkedList<String>> configuredHeaders = inspectionHeader.getHeaders();
+		Map<String, LinkedList<String>> dynamicHeaders = new LinkedHashMap<String, LinkedList<String>>();
+
+		for (InspectionTable record : latestRecords) {
+			LinkedList<String> headers = configuredHeaders.get(record.getIP());
+			if (headers == null) {
+				headers = new LinkedList<String>(Arrays.asList(
+						InspectionCommon.DISK_USAGE_RATE,
+						InspectionCommon.DISK_USAGE,
+						InspectionCommon.MEMORY_USAGE,
+						InspectionCommon.CPU_USAGE,
+						InspectionCommon.THREAD_COUNT
+				));
+
+				if (ObjectUtil.isNotEmpty(record.getSECOND_DISK_USAGE()) || ObjectUtil.isNotEmpty(record.getSECOND_DISK_TOTAL()) || ObjectUtil.isNotEmpty(record.getSECOND_DISK_USAGE_RATE())) {
+					headers.add(2, InspectionCommon.SECOND_DISK_USAGE_RATE);
+					headers.add(3, InspectionCommon.SECOND_DISK_USAGE);
+				}
+
+				if (ObjectUtil.isNotEmpty(record.getTHIRD_DISK_USAGE()) || ObjectUtil.isNotEmpty(record.getTHIRD_DISK_TOTAL()) || ObjectUtil.isNotEmpty(record.getTHIRD_DISK_USAGE_RATE())) {
+					headers.add(4, InspectionCommon.THIRD_DISK_USAGE_RATE);
+					headers.add(5, InspectionCommon.THIRD_SECOND_DISK_USAGE);
+				}
+			} else {
+				headers = new LinkedList<String>(headers);
+			}
+
+			dynamicHeaders.put(record.getIP(), headers);
+		}
+
+		return dynamicHeaders;
+	}
+
+	private String joinUsage(String usage, String total) {
+		if (ObjectUtil.isEmpty(usage) && ObjectUtil.isEmpty(total)) {
+			return "";
+		}
+		if (ObjectUtil.isEmpty(total)) {
+			return defaultString(usage);
+		}
+		return defaultString(usage) + "/" + total;
+	}
+
+	private String defaultString(String value) {
+		return value == null ? "" : value;
 	}
 }

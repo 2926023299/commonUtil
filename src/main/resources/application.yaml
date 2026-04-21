@@ -1,5 +1,5 @@
 server:
-  port: 8090
+  port: 8091
 
 #logging:
 #  level:
@@ -135,26 +135,20 @@ jar:
 
 inspection:
   servers:
-    - ip: 47.98.126.186
+    - ip: 127.0.0.1
       port: 15353
-      username: root
-      password: JCDZ@is.01
+      username: gxl
+      password: 123456
       jars:
         - CommonUtil-0.0.1-SNAPSHOT.jar:commonUtil.sh
         - dmscldpro:null
         - dmscldprotest:null
-    - ip: 47.98.126.186
+    - ip: 127.0.0.1
       port: 15353
-      username: root
-      password: JCDZ@is.01
-      jars:
-        - CommonUtil.jar:commonUtil.sh
-    - ip: 47.98.126.183
-      port: 15353
-      username: root
+      username: gxl
       password: 123456
       jars:
-        - null:null
+        - CommonUtil.jar:commonUtil.sh
 
 commands:
   command:

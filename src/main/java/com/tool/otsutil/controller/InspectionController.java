@@ -10,6 +10,7 @@ import com.tool.otsutil.model.dto.inspection.ServerInspectionListRequest;
 import com.tool.otsutil.model.entity.InspectionTable;
 import com.tool.otsutil.model.vo.inspection.DashboardSummaryView;
 import com.tool.otsutil.model.vo.inspection.JavaInspectionDetailView;
+import com.tool.otsutil.model.vo.inspection.JavaInspectionSummaryView;
 import com.tool.otsutil.model.vo.inspection.JavaInspectionView;
 import com.tool.otsutil.model.vo.inspection.PageResponse;
 import com.tool.otsutil.model.vo.inspection.ServerInspectionView;
@@ -21,12 +22,22 @@ import com.tool.otsutil.service.InspectionImpl.TuMoStatisticsService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -39,6 +50,9 @@ public class InspectionController {
 
 	@Value("${excel.file-name}")
 	private String fileName;
+
+	@Value("${excel.export-path}")
+	private String exportPath;
 
 	@Autowired
 	private InspectionService inspectionService;
@@ -145,6 +159,11 @@ public class InspectionController {
 		return ResponseResult.okResult(inspectionQueryService.getJavaInspectionList(request));
 	}
 
+	@GetMapping("/java/summary")
+	public ResponseResult<JavaInspectionSummaryView> getJavaInspectionSummary() {
+		return ResponseResult.okResult(inspectionQueryService.getJavaInspectionSummary());
+	}
+
 	@GetMapping("/java/detail")
 	public ResponseResult<JavaInspectionDetailView> getJavaInspectionDetail(@RequestParam String ip) {
 		return ResponseResult.okResult(inspectionQueryService.getJavaInspectionDetail(ip));
@@ -168,6 +187,13 @@ public class InspectionController {
 	public ResponseResult exportServerInspectionResults() throws Exception {
 		inspectionService.exportInspectionToExcel(fileName, "资源巡检(每小时)");
 		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "服务器巡检结果已导出");
+	}
+
+	@GetMapping("/server/export/file")
+	public ResponseEntity<ByteArrayResource> downloadServerInspectionResults() throws Exception {
+		String exportFileName = buildDownloadFileName("server-inspection");
+		inspectionService.exportLatestInspectionToExcel(exportFileName, "资源巡检(每小时)");
+		return buildExcelDownloadResponse(exportFileName, "server-inspection.xlsx");
 	}
 
 	@Scheduled(cron = "0 12 10 * * ?") // 每天早上8点12分执行
@@ -194,6 +220,13 @@ public class InspectionController {
 	public ResponseResult exportJavaInspectionResult() throws Exception {
 		inspectionService.exportJavaInspectionToExcel(fileName);
 		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "Java巡检结果已导出");
+	}
+
+	@GetMapping("/java/export/file")
+	public ResponseEntity<ByteArrayResource> downloadJavaInspectionResult() throws Exception {
+		String exportFileName = buildDownloadFileName("java-inspection");
+		inspectionService.exportLatestJavaInspectionToExcel(exportFileName);
+		return buildExcelDownloadResponse(exportFileName, "java-inspection.xlsx");
 	}
 
 	@Scheduled(cron = "0 0 2 * * ?") // 每天凌晨执行一次
@@ -256,5 +289,28 @@ public class InspectionController {
 		tuMoStatisticsService.exportStatisticsToExcel(fileName, zyStatistics, dyStatistics);
 
 		return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "图模统计结果已导出");
+	}
+
+	private ResponseEntity<ByteArrayResource> buildExcelDownloadResponse(String sourceFileName, String fallbackFileName) throws IOException {
+		Path exportFilePath = Paths.get(new File(exportPath, sourceFileName).getAbsolutePath());
+		byte[] fileBytes = Files.readAllBytes(exportFilePath);
+		Files.deleteIfExists(exportFilePath);
+		ByteArrayResource resource = new ByteArrayResource(fileBytes);
+
+		String encodedFileName = URLEncoder.encode(sourceFileName, StandardCharsets.UTF_8.name()).replace("+", "%20");
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+		headers.setContentLength(fileBytes.length);
+		headers.add(HttpHeaders.CONTENT_DISPOSITION,
+				"attachment; filename=\"" + fallbackFileName + "\"; filename*=UTF-8''" + encodedFileName);
+
+		return ResponseEntity.ok()
+				.headers(headers)
+				.body(resource);
+	}
+
+	private String buildDownloadFileName(String prefix) {
+		String timestamp = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+		return prefix + "-" + timestamp + ".xlsx";
 	}
 }

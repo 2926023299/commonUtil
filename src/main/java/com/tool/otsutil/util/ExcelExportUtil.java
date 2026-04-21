@@ -499,7 +499,13 @@ public class ExcelExportUtil {
 		// 输出结果
 		String formattedDate = currentDate.format(formatter);
 
-		Workbook workbook = getWorkbook(fileName);
+		Workbook workbook;
+		try {
+			workbook = getWorkbook(fileName);
+		} catch (CustomException exception) {
+			log.warn("Java 巡检导出未找到现有Excel，创建新工作簿: {}", fileName);
+			workbook = new XSSFWorkbook();
+		}
 
 		Sheet sheet = workbook.getSheet("程序巡检");
 
