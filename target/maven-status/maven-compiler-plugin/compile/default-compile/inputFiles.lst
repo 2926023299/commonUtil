@@ -7,6 +7,7 @@ c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\Ap
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\model\view\RemoteBreadcrumbItemView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\config\ServerConnectionProperties.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\ApiDto\RtuRreqUnline.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\websocket\LoginHandshakeInterceptor.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\inspection\ServerConfig.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\vo\inspection\TopologyCityView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\ApiDto\IntelDistributeCoverage.java
@@ -29,6 +30,7 @@ c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\Ap
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\InspectionImpl\OtsService.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\FileMonitorStarter.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\util\HttpClientUtil.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\auth\LoginRequest.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\ApiDto\AutoFeederRate.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\vo\inspection\DashboardSummaryView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\gateway\MockRemoteServerGateway.java
@@ -59,6 +61,7 @@ c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\Insp
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\fileProcess\ProcessingResult.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\model\view\ServerConnectionView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\gateway\SshjServerConnectionHandle.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\vo\auth\LoginUserView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\ApiDto\DefectArchivingRate.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\service\TerminalSessionManager.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\brekerService\BreakerEnergyDataService.java
@@ -74,6 +77,7 @@ c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\common
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\model\request\RenameRemoteFileRequest.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\api\HttpService.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\api\ApiService.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\controller\AuthController.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\service\TerminalSessionRecord.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\vo\inspection\StatusSummaryView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\controller\ServerConnectionController.java
@@ -115,11 +119,14 @@ c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\OtsPr
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\brekerService\DataCompareService.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\InspectionImpl\JarDeployService.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\vo\inspection\TopologySummaryView.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\WebMvcAuthConfig.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\LoginAuthInterceptor.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\OtsConfig.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\dto\ApiDto\ApiConfigs.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\processServiceImpl\JarDeployProcessor.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\CitiesConfig.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\config\InspectionConfig.java
+c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\service\auth\AuthService.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\util\RateExtractor.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\model\vo\inspection\JavaProcessDiffView.java
 c:\Users\GXL\IdeaProjects\commonUtil\src\main\java\com\tool\otsutil\serverconnection\gateway\MockServerShell.java

@@ -6,12 +6,17 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
+import java.util.Arrays;
+
 @Configuration
 public class CorsConfig {
 	@Bean
 	public CorsFilter corsFilter() {
 		CorsConfiguration config = new CorsConfiguration();
-		config.addAllowedOriginPattern("*");
+		config.setAllowedOriginPatterns(Arrays.asList(
+				"http://localhost:*",
+				"http://127.0.0.1:*"
+		));
 		config.addAllowedHeader("*");
 		config.addAllowedMethod("*");
 		config.addExposedHeader("Content-Disposition");
