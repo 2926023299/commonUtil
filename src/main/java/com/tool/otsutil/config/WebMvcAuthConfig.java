@@ -16,6 +16,6 @@ public class WebMvcAuthConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(loginAuthInterceptor)
-                .addPathPatterns("/Inspection/**", "/server-connections/**");
+                .addPathPatterns("/Inspection/**", "/server-connections/**", "/mysql-workbench/**");
     }
 }

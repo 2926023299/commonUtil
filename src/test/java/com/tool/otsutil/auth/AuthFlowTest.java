@@ -4,6 +4,8 @@ import com.tool.otsutil.config.LoginAuthInterceptor;
 import com.tool.otsutil.controller.AuthController;
 import com.tool.otsutil.controller.InspectionController;
 import com.tool.otsutil.exception.ExceptionCatch;
+import com.tool.otsutil.mysqlworkbench.controller.MysqlWorkbenchController;
+import com.tool.otsutil.mysqlworkbench.service.MysqlWorkbenchService;
 import com.tool.otsutil.service.InspectionImpl.InspectionQueryService;
 import com.tool.otsutil.service.InspectionImpl.InspectionService;
 import com.tool.otsutil.service.InspectionImpl.InspectionTableService;
@@ -42,6 +44,8 @@ class AuthFlowTest {
 
     private TerminalSessionManager terminalSessionManager;
 
+    private MysqlWorkbenchService mysqlWorkbenchService;
+
     @BeforeEach
     void setUp() {
         inspectionService = mock(InspectionService.class);
@@ -49,9 +53,11 @@ class AuthFlowTest {
         inspectionTableService = mock(InspectionTableService.class);
         inspectionQueryService = mock(InspectionQueryService.class);
         terminalSessionManager = mock(TerminalSessionManager.class);
+        mysqlWorkbenchService = mock(MysqlWorkbenchService.class);
 
         given(inspectionQueryService.getDashboardSummary()).willReturn(null);
         given(terminalSessionManager.listServers()).willReturn(Collections.emptyList());
+        given(mysqlWorkbenchService.listTree(false)).willReturn(Collections.emptyList());
 
         AuthService authService = new AuthService();
 
@@ -66,10 +72,11 @@ class AuthFlowTest {
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new AuthController(authService),
                         inspectionController,
-                        new ServerConnectionController(terminalSessionManager)
+                        new ServerConnectionController(terminalSessionManager),
+                        new MysqlWorkbenchController(mysqlWorkbenchService, authService)
                 )
                 .addMappedInterceptors(
-                        new String[]{"/Inspection/**", "/server-connections/**"},
+                        new String[]{"/Inspection/**", "/server-connections/**", "/mysql-workbench/**"},
                         new LoginAuthInterceptor(authService)
                 )
                 .setControllerAdvice(new ExceptionCatch())
@@ -83,6 +90,10 @@ class AuthFlowTest {
                 .andExpect(jsonPath("$.code").value(1));
 
         mockMvc.perform(get("/server-connections/servers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1));
+
+        mockMvc.perform(get("/mysql-workbench/tree"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(1));
 
@@ -106,6 +117,10 @@ class AuthFlowTest {
                 .andExpect(jsonPath("$.code").value(200));
 
         mockMvc.perform(get("/server-connections/servers").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/mysql-workbench/tree").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
