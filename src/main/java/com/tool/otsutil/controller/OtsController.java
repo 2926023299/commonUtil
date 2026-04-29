@@ -3,6 +3,8 @@ package com.tool.otsutil.controller;
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.common.ResponseResult;
+import com.tool.otsutil.model.dto.ots.CurveSaveResult;
+import com.tool.otsutil.model.dto.ots.CurveTemplateType;
 import com.tool.otsutil.service.InspectionImpl.OtsService;
 import com.tool.otsutil.service.brekerService.BreakerEnergyDataService;
 
@@ -59,5 +61,23 @@ public class OtsController {
         }
 
         return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS.getCode(), "设置全局值成功\n");
+    }
+
+    @PostMapping("saveCurve/{id}/{type}/{date}")
+    public ResponseResult writeCurveData(@PathVariable String id, @PathVariable String type, @PathVariable String date) {
+        log.info("save curve data to ots, id:{}, type:{}, date:{}", id, type, date);
+
+        String normalizedId = id == null ? "" : id.replace("%20", " ").replace("+", " ").trim();
+        if (normalizedId.isEmpty()) {
+            throw new CustomException(AppHttpCodeEnum.PARAM_REQUIRE);
+        }
+
+        if (!date.matches("\\d{8}")) {
+            throw new CustomException(AppHttpCodeEnum.PARAM_INVALID, date);
+        }
+
+        CurveTemplateType curveTemplateType = CurveTemplateType.fromCode(type);
+        CurveSaveResult result = otsService.saveCurveData(normalizedId, curveTemplateType, date);
+        return ResponseResult.okResult(result);
     }
 }

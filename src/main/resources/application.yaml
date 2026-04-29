@@ -8,6 +8,10 @@ server:
 spring:
   profiles:
     active: default
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
   #配置数据库
   datasource:
     druid:
@@ -34,6 +38,7 @@ ots:
   access_key_secret: AEqi82fg2wI1LK3bKgnOH43O67791l
   table_name: dyyc
   key: key
+  curve-template-path: 曲线.json
 
 # excel导出路径
 excel:

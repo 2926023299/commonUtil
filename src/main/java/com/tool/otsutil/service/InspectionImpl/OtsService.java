@@ -7,6 +7,10 @@ import com.tool.otsutil.config.OtsProperties;
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.exception.ExceptionCatch;
 import com.tool.otsutil.model.common.*;
+import com.tool.otsutil.model.dto.ots.CurveSaveResult;
+import com.tool.otsutil.model.dto.ots.CurveTemplateDay;
+import com.tool.otsutil.model.dto.ots.CurveTemplateType;
+import com.tool.otsutil.service.ots.CurveTemplateLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,7 +21,12 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Slf4j
 @Service
@@ -26,6 +35,9 @@ public class OtsService {
     private final SyncClient otsClient;
     private static final String TABLE_NAME = "dyyc";
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss");
+    private static final DateTimeFormatter OTS_KEY_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final DateTimeFormatter OTS_COLUMN_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final BigDecimal CURVE_PERCENTAGE = new BigDecimal("0.05");
 
     @Autowired
     private OtsProperties otsProperties;
@@ -39,6 +51,9 @@ public class OtsService {
 
     @Autowired
     private GlobalOTSValue globalOTSValue;
+
+    @Autowired
+    private CurveTemplateLoader curveTemplateLoader;
 
     public static String getFifteenMinutes(String inputTime, boolean isNextMinute) throws ParseException {
         // 解析输入字符串为日期对象
@@ -187,6 +202,37 @@ public class OtsService {
 
             startTime = Long.parseLong(currentTime);
         }
+    }
+
+    public CurveSaveResult saveCurveData(String id, CurveTemplateType type, String day) {
+        Map<CurveTemplateType, List<CurveTemplateDay>> templates = curveTemplateLoader.loadTemplates();
+        List<CurveTemplateDay> templateDays = templates.get(type);
+        if (templateDays == null || templateDays.isEmpty()) {
+            throw new CustomException(AppHttpCodeEnum.SERVER_ERROR, "未找到曲线模板: " + type.name());
+        }
+
+        CurveTemplateDay templateDay = templateDays.get(new Random().nextInt(templateDays.size()));
+        LocalDate targetDate = LocalDate.parse(day, DateTimeFormatter.BASIC_ISO_DATE);
+
+        for (int index = 0; index < templateDay.getValues().size(); index++) {
+            LocalDateTime targetDateTime = LocalDateTime.of(targetDate, templateDay.getTimes().get(index));
+            BigDecimal currentValue = applyCurveVariation(templateDay.getValues().get(index));
+
+            writeData(
+                    id + targetDateTime.format(OTS_KEY_TIME_FORMAT),
+                    currentValue,
+                    targetDateTime.format(OTS_COLUMN_TIME_FORMAT)
+            );
+        }
+
+        return new CurveSaveResult(type.name(), day, templateDay.getSourceDate().toString(), templateDay.getValues().size());
+    }
+
+    private BigDecimal applyCurveVariation(BigDecimal templateValue) {
+        if (templateValue == null || templateValue.compareTo(BigDecimal.ZERO) == 0) {
+            return templateValue == null ? BigDecimal.ZERO : templateValue;
+        }
+        return getRandomWithinRange(templateValue, CURVE_PERCENTAGE);
     }
 
     // 获取一个BigDecimal的随机值
