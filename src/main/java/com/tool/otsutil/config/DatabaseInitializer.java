@@ -33,6 +33,13 @@ public class DatabaseInitializer implements CommandLineRunner {
         ensureTable("breaker_energy_data", this::createBreakerEnergyDataTable);
         ensureTable("mysql_query_history", this::createMysqlQueryHistoryTable);
         ensureTable("mysql_query_history_statement", this::createMysqlQueryHistoryStatementTable);
+        ensureTable("mysql_saved_query", this::createMysqlSavedQueryTable);
+        ensureColumn("mysql_query_history_statement", "error_code",
+                "ALTER TABLE `mysql_query_history_statement` ADD COLUMN `error_code` int(11) DEFAULT NULL AFTER `error_message`");
+        ensureColumn("mysql_query_history_statement", "sql_state",
+                "ALTER TABLE `mysql_query_history_statement` ADD COLUMN `sql_state` varchar(16) DEFAULT NULL AFTER `error_code`");
+        ensureColumn("mysql_query_history_statement", "error_category",
+                "ALTER TABLE `mysql_query_history_statement` ADD COLUMN `error_category` varchar(64) DEFAULT NULL AFTER `sql_state`");
     }
 
     private void ensureTable(String tableName, Runnable creator) {
@@ -56,6 +63,30 @@ public class DatabaseInitializer implements CommandLineRunner {
             return exists;
         } catch (Exception e) {
             log.error("检查表是否存在时出错: {}", tableName, e);
+            return false;
+        }
+    }
+
+    private void ensureColumn(String tableName, String columnName, String alterSql) {
+        if (columnExists(tableName, columnName)) {
+            return;
+        }
+        log.info("{}.{} 字段不存在，开始补充...", tableName, columnName);
+        jdbcTemplate.execute(alterSql);
+        log.info("{}.{} 字段补充完成", tableName, columnName);
+    }
+
+    private boolean columnExists(String tableName, String columnName) {
+        try {
+            Connection connection = jdbcTemplate.getDataSource().getConnection();
+            DatabaseMetaData metaData = connection.getMetaData();
+            ResultSet columns = metaData.getColumns(null, null, tableName, columnName);
+            boolean exists = columns.next();
+            columns.close();
+            connection.close();
+            return exists;
+        } catch (Exception e) {
+            log.error("检查字段是否存在时出错: {}.{}", tableName, columnName, e);
             return false;
         }
     }
@@ -103,9 +134,25 @@ public class DatabaseInitializer implements CommandLineRunner {
                 + "`result_size` int(11) NOT NULL DEFAULT 0,"
                 + "`duration_ms` bigint(20) NOT NULL DEFAULT 0,"
                 + "`error_message` text DEFAULT NULL,"
+                + "`error_code` int(11) DEFAULT NULL,"
+                + "`sql_state` varchar(16) DEFAULT NULL,"
+                + "`error_category` varchar(64) DEFAULT NULL,"
                 + "`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,"
                 + "PRIMARY KEY (`id`),"
                 + "KEY `idx_mysql_query_statement_history` (`history_id`)"
                 + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MySQL 工作台 SQL 执行历史语句表'");
+    }
+
+    private void createMysqlSavedQueryTable() {
+        jdbcTemplate.execute("CREATE TABLE `mysql_saved_query` ("
+                + "`id` bigint(20) NOT NULL AUTO_INCREMENT,"
+                + "`title` varchar(120) NOT NULL,"
+                + "`schema_name` varchar(128) DEFAULT NULL,"
+                + "`sql_text` longtext NOT NULL,"
+                + "`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + "`updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + "PRIMARY KEY (`id`),"
+                + "KEY `idx_mysql_saved_query_updated_at` (`updated_at`)"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MySQL 工作台保存查询表'");
     }
 }

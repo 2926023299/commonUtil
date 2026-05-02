@@ -14,6 +14,14 @@ public class MysqlSqlBatchResultView {
 
     private Boolean dangerous;
 
+    private Boolean success;
+
+    private String status;
+
+    private String message;
+
+    private Integer failedStatementIndex;
+
     private Integer statementCount;
 
     private List<MysqlSqlStatementResultView> results = new ArrayList<MysqlSqlStatementResultView>();

@@ -21,5 +21,11 @@ public class MysqlHistoryStatementView {
 
     private String errorMessage;
 
+    private Integer errorCode;
+
+    private String sqlState;
+
+    private String errorCategory;
+
     private String statementText;
 }

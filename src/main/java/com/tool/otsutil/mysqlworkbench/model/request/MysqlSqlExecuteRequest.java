@@ -10,4 +10,6 @@ public class MysqlSqlExecuteRequest {
     private String sql;
 
     private Boolean confirmed;
+
+    private Integer maxDisplayRows;
 }

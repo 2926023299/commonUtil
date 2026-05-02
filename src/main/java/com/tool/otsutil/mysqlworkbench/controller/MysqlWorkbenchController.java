@@ -6,17 +6,20 @@ import com.tool.otsutil.mysqlworkbench.model.request.MysqlHistoryQueryRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlRowDeleteRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlRowInsertRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlRowUpdateRequest;
+import com.tool.otsutil.mysqlworkbench.model.request.MysqlSavedQuerySaveRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlSqlExecuteRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableDesignRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableQueryRequest;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlDesignPreviewView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlHistoryDetailView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlHistoryPageView;
+import com.tool.otsutil.mysqlworkbench.model.view.MysqlSavedQueryView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlSqlBatchResultView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableDataPageView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableMetadataView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTreeNodeView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlWriteResultView;
+import com.tool.otsutil.mysqlworkbench.service.MysqlSavedQueryService;
 import com.tool.otsutil.mysqlworkbench.service.MysqlWorkbenchService;
 import com.tool.otsutil.service.auth.AuthService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,10 +41,15 @@ public class MysqlWorkbenchController {
 
     private final MysqlWorkbenchService mysqlWorkbenchService;
 
+    private final MysqlSavedQueryService mysqlSavedQueryService;
+
     private final AuthService authService;
 
-    public MysqlWorkbenchController(MysqlWorkbenchService mysqlWorkbenchService, AuthService authService) {
+    public MysqlWorkbenchController(MysqlWorkbenchService mysqlWorkbenchService,
+                                    MysqlSavedQueryService mysqlSavedQueryService,
+                                    AuthService authService) {
         this.mysqlWorkbenchService = mysqlWorkbenchService;
+        this.mysqlSavedQueryService = mysqlSavedQueryService;
         this.authService = authService;
     }
 
@@ -107,6 +115,22 @@ public class MysqlWorkbenchController {
     @GetMapping("/history/{batchId}")
     public ResponseResult<MysqlHistoryDetailView> getHistoryDetail(@PathVariable long batchId) {
         return ResponseResult.okResult(mysqlWorkbenchService.getHistoryDetail(batchId));
+    }
+
+    @GetMapping("/queries")
+    public ResponseResult<List<MysqlSavedQueryView>> listSavedQueries() {
+        return ResponseResult.okResult(mysqlSavedQueryService.listQueries());
+    }
+
+    @PostMapping("/queries")
+    public ResponseResult<MysqlSavedQueryView> saveQuery(@RequestBody MysqlSavedQuerySaveRequest request) {
+        return ResponseResult.okResult(mysqlSavedQueryService.saveQuery(request));
+    }
+
+    @DeleteMapping("/queries/{queryId}")
+    public ResponseResult<Void> deleteQuery(@PathVariable long queryId) {
+        mysqlSavedQueryService.deleteQuery(queryId);
+        return ResponseResult.okResult(null);
     }
 
     private String currentUsername(HttpServletRequest servletRequest) {

@@ -65,11 +65,14 @@ public class MysqlHistoryService {
                                 long affectedRows,
                                 int resultSize,
                                 long durationMs,
-                                String errorMessage) {
+                                String errorMessage,
+                                Integer errorCode,
+                                String sqlState,
+                                String errorCategory) {
         jdbcTemplate.update(
                 "INSERT INTO " + STATEMENT_TABLE_NAME
-                        + " (history_id, statement_order, statement_text, statement_type, success, affected_rows, result_size, duration_ms, error_message, created_at) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + " (history_id, statement_order, statement_text, statement_type, success, affected_rows, result_size, duration_ms, error_message, error_code, sql_state, error_category, created_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 batchId,
                 order,
                 sql,
@@ -79,6 +82,9 @@ public class MysqlHistoryService {
                 resultSize,
                 durationMs,
                 errorMessage,
+                errorCode,
+                sqlState,
+                errorCategory,
                 Timestamp.valueOf(LocalDateTime.now())
         );
     }
@@ -153,7 +159,7 @@ public class MysqlHistoryService {
         );
 
         List<MysqlHistoryStatementView> statements = jdbcTemplate.query(
-                "SELECT id, statement_order, statement_type, success, affected_rows, result_size, duration_ms, error_message, statement_text "
+                "SELECT id, statement_order, statement_type, success, affected_rows, result_size, duration_ms, error_message, error_code, sql_state, error_category, statement_text "
                         + "FROM " + STATEMENT_TABLE_NAME + " WHERE history_id = ? ORDER BY statement_order ASC",
                 (resultSet, rowNum) -> {
                     MysqlHistoryStatementView view = new MysqlHistoryStatementView();
@@ -165,6 +171,10 @@ public class MysqlHistoryService {
                     view.setResultSize(resultSet.getInt("result_size"));
                     view.setDurationMs(resultSet.getLong("duration_ms"));
                     view.setErrorMessage(resultSet.getString("error_message"));
+                    int errorCode = resultSet.getInt("error_code");
+                    view.setErrorCode(resultSet.wasNull() ? null : errorCode);
+                    view.setSqlState(resultSet.getString("sql_state"));
+                    view.setErrorCategory(resultSet.getString("error_category"));
                     view.setStatementText(resultSet.getString("statement_text"));
                     return view;
                 },

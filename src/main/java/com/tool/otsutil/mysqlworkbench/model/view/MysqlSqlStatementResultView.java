@@ -21,6 +21,8 @@ public class MysqlSqlStatementResultView {
 
     private String message;
 
+    private MysqlSqlErrorView error;
+
     private Long durationMs;
 
     private Long affectedRows;
@@ -28,4 +30,6 @@ public class MysqlSqlStatementResultView {
     private List<String> columns = new ArrayList<String>();
 
     private List<LinkedHashMap<String, Object>> rows = new ArrayList<LinkedHashMap<String, Object>>();
+
+    private Long totalRowCount;
 }
