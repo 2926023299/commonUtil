@@ -78,6 +78,8 @@ areas:
     3096224878034945: 莆田市
 
 app:
+  auth:
+    session-never-expire: true
   file:
     monitor:
       enabled: true

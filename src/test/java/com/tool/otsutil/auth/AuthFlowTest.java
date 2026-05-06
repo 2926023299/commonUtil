@@ -111,6 +111,8 @@ class AuthFlowTest {
                 .getRequest()
                 .getSession(false);
 
+        org.junit.jupiter.api.Assertions.assertEquals(-1, session.getMaxInactiveInterval());
+
         mockMvc.perform(get("/auth/session").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

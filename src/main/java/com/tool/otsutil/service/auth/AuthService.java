@@ -1,9 +1,11 @@
 package com.tool.otsutil.service.auth;
 
+import com.tool.otsutil.config.AuthProperties;
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.dto.auth.LoginRequest;
 import com.tool.otsutil.model.vo.auth.LoginUserView;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpSession;
@@ -16,6 +18,17 @@ public class AuthService {
     private static final String FIXED_USERNAME = "admin";
     private static final String FIXED_PASSWORD = "JCDZ@is.01";
 
+    private final AuthProperties authProperties;
+
+    public AuthService() {
+        this(new AuthProperties());
+    }
+
+    @Autowired
+    public AuthService(AuthProperties authProperties) {
+        this.authProperties = authProperties;
+    }
+
     public LoginUserView login(LoginRequest request, HttpSession session) {
         String username = request == null ? null : normalize(request.getUsername());
         String password = request == null ? null : request.getPassword();
@@ -24,6 +37,9 @@ public class AuthService {
             throw new CustomException(AppHttpCodeEnum.LOGIN_PASSWORD_ERROR);
         }
 
+        if (authProperties.isSessionNeverExpire()) {
+            session.setMaxInactiveInterval(-1);
+        }
         session.setAttribute(LOGIN_USER_SESSION_KEY, FIXED_USERNAME);
         return buildUserView(FIXED_USERNAME);
     }
