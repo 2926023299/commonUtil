@@ -203,6 +203,10 @@ public class TerminalSessionManager {
 
     @Scheduled(fixedDelayString = "${server-connections.cleanup-delay-ms:60000}")
     public void cleanupIdleSessions() {
+        if (properties.getIdleTimeoutMinutes() <= 0) {
+            return;
+        }
+
         long now = System.currentTimeMillis();
         long idleThreshold = properties.getIdleTimeoutMinutes() * 60L * 1000L;
         List<TerminalSessionRecord> expired = new ArrayList<TerminalSessionRecord>();

@@ -92,6 +92,33 @@ class TerminalSessionManagerTest {
         manager.delete(session.getSessionId(), createDeleteRequest("/workspace/release", true));
     }
 
+    @Test
+    void shouldNotCleanupIdleSessionsWhenIdleTimeoutIsDisabled() throws Exception {
+        InspectionConfig inspectionConfig = new InspectionConfig();
+        inspectionConfig.setServers(Collections.singletonList(
+                new ServerConfig("10.0.0.2", 22, "root", "secret", Collections.singletonList("app.jar:start.sh"))
+        ));
+
+        ServerCatalogService catalogService = new ServerCatalogService(inspectionConfig);
+        ServerConnectionProperties properties = new ServerConnectionProperties();
+        properties.setIdleTimeoutMinutes(0);
+        TerminalSessionManager manager = new TerminalSessionManager(
+                catalogService,
+                new MockRemoteServerGateway(),
+                properties,
+                new ObjectMapper()
+        );
+
+        OpenTerminalSessionRequest request = new OpenTerminalSessionRequest();
+        request.setServerKey("10.0.0.2:22:root");
+        TerminalSessionView session = manager.openSession(request);
+
+        Thread.sleep(5L);
+        manager.cleanupIdleSessions();
+
+        Assertions.assertEquals(session.getSessionId(), manager.getSession(session.getSessionId()).getSessionId());
+    }
+
     private DeleteRemoteFileRequest createDeleteRequest(String path) {
         return createDeleteRequest(path, false);
     }

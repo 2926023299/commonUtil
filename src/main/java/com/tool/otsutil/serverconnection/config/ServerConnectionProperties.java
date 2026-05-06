@@ -17,12 +17,17 @@ public class ServerConnectionProperties {
     private boolean mockEnabled = false;
 
     /**
-     * Idle minutes before an unused terminal session is closed.
+     * Idle minutes before an unused terminal session is closed. A value of 0 or less disables idle cleanup.
      */
-    private int idleTimeoutMinutes = 15;
+    private int idleTimeoutMinutes = 0;
 
     /**
      * Cleanup interval for stale sessions.
      */
     private long cleanupDelayMs = 60_000L;
+
+    /**
+     * SSH transport keepalive interval in seconds. A value of 0 or less disables SSH keepalive.
+     */
+    private int sshKeepaliveIntervalSeconds = 30;
 }

@@ -19,7 +19,8 @@ public class ServerConnectionGatewayConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "server-connections", name = "mock-enabled", havingValue = "false", matchIfMissing = true)
-    public RemoteServerGateway sshjRemoteServerGateway(InspectionService inspectionService) {
-        return new SshjRemoteServerGateway(inspectionService);
+    public RemoteServerGateway sshjRemoteServerGateway(InspectionService inspectionService,
+                                                       ServerConnectionProperties properties) {
+        return new SshjRemoteServerGateway(inspectionService, properties);
     }
 }

@@ -130,6 +130,11 @@ app:
           recursive: false
           check-interval: 10
           stability-threshold: 5000
+server-connections:
+  idle-timeout-minutes: 0
+  cleanup-delay-ms: 60000
+  ssh-keepalive-interval-seconds: 30
+
 
 
 jar:

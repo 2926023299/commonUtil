@@ -3,11 +3,13 @@ package com.tool.otsutil.serverconnection.gateway;
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
 import com.tool.otsutil.model.dto.inspection.ServerConfig;
+import com.tool.otsutil.serverconnection.config.ServerConnectionProperties;
 import com.tool.otsutil.serverconnection.model.view.RemoteBreadcrumbItemView;
 import com.tool.otsutil.serverconnection.model.view.RemoteFileEntryView;
 import com.tool.otsutil.serverconnection.model.view.RemoteFileListView;
 import com.tool.otsutil.serverconnection.util.PosixPathUtils;
 import com.tool.otsutil.service.InspectionImpl.InspectionService;
+import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.connection.channel.direct.PTYMode;
 import net.schmizz.sshj.connection.channel.direct.Session;
 import net.schmizz.sshj.sftp.FileAttributes;
@@ -30,14 +32,20 @@ import java.util.zip.ZipOutputStream;
 public class SshjRemoteServerGateway implements RemoteServerGateway {
 
     private final InspectionService inspectionService;
+    private final ServerConnectionProperties properties;
 
-    public SshjRemoteServerGateway(InspectionService inspectionService) {
+    public SshjRemoteServerGateway(InspectionService inspectionService, ServerConnectionProperties properties) {
         this.inspectionService = inspectionService;
+        this.properties = properties;
     }
 
     @Override
     public ServerConnectionHandle openConnection(ServerConfig serverConfig) throws IOException {
-        return new SshjServerConnectionHandle(buildServerKey(serverConfig), inspectionService.connectToServer(serverConfig));
+        SSHClient sshClient = inspectionService.connectToServer(serverConfig);
+        if (properties.getSshKeepaliveIntervalSeconds() > 0) {
+            sshClient.getConnection().getKeepAlive().setKeepAliveInterval(properties.getSshKeepaliveIntervalSeconds());
+        }
+        return new SshjServerConnectionHandle(buildServerKey(serverConfig), sshClient);
     }
 
     @Override
