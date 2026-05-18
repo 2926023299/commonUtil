@@ -32,4 +32,10 @@ public class MysqlSqlStatementResultView {
     private List<LinkedHashMap<String, Object>> rows = new ArrayList<LinkedHashMap<String, Object>>();
 
     private Long totalRowCount;
+
+    private Integer displayRowCount;
+
+    private Boolean truncated;
+
+    private Integer displayLimit;
 }

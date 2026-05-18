@@ -34,6 +34,7 @@ public class DatabaseInitializer implements CommandLineRunner {
         ensureTable("mysql_query_history", this::createMysqlQueryHistoryTable);
         ensureTable("mysql_query_history_statement", this::createMysqlQueryHistoryStatementTable);
         ensureTable("mysql_saved_query", this::createMysqlSavedQueryTable);
+        ensureTable("mysql_export_job", this::createMysqlExportJobTable);
         ensureColumn("mysql_query_history_statement", "error_code",
                 "ALTER TABLE `mysql_query_history_statement` ADD COLUMN `error_code` int(11) DEFAULT NULL AFTER `error_message`");
         ensureColumn("mysql_query_history_statement", "sql_state",
@@ -154,5 +155,32 @@ public class DatabaseInitializer implements CommandLineRunner {
                 + "PRIMARY KEY (`id`),"
                 + "KEY `idx_mysql_saved_query_updated_at` (`updated_at`)"
                 + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MySQL 工作台保存查询表'");
+    }
+
+    private void createMysqlExportJobTable() {
+        jdbcTemplate.execute("CREATE TABLE `mysql_export_job` ("
+                + "`id` bigint(20) NOT NULL AUTO_INCREMENT,"
+                + "`source_type` varchar(16) NOT NULL,"
+                + "`format` varchar(16) NOT NULL,"
+                + "`schema_name` varchar(128) DEFAULT NULL,"
+                + "`table_name` varchar(128) DEFAULT NULL,"
+                + "`sql_text` longtext DEFAULT NULL,"
+                + "`filters_json` longtext DEFAULT NULL,"
+                + "`sorts_json` longtext DEFAULT NULL,"
+                + "`status` varchar(32) NOT NULL DEFAULT 'PENDING',"
+                + "`file_name` varchar(255) DEFAULT NULL,"
+                + "`file_path` varchar(1024) DEFAULT NULL,"
+                + "`file_size` bigint(20) DEFAULT NULL,"
+                + "`total_rows` bigint(20) DEFAULT NULL,"
+                + "`exported_rows` bigint(20) NOT NULL DEFAULT 0,"
+                + "`message` text DEFAULT NULL,"
+                + "`created_by` varchar(64) DEFAULT NULL,"
+                + "`created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + "`started_at` datetime DEFAULT NULL,"
+                + "`finished_at` datetime DEFAULT NULL,"
+                + "PRIMARY KEY (`id`),"
+                + "KEY `idx_mysql_export_job_created_at` (`created_at`),"
+                + "KEY `idx_mysql_export_job_status` (`status`)"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MySQL 工作台后台导出任务表'");
     }
 }

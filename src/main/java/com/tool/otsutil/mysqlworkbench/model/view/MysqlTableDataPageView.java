@@ -19,6 +19,8 @@ public class MysqlTableDataPageView {
 
     private Long total;
 
+    private Boolean hasNext;
+
     private Boolean readOnly;
 
     private String readOnlyReason;

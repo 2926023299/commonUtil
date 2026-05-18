@@ -5,17 +5,19 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class MysqlTableQueryRequest {
+public class MysqlExportCreateRequest {
+
+    private String sourceType;
+
+    private String format;
 
     private String schema;
 
     private String table;
 
-    private Integer page;
+    private String sql;
 
-    private Integer pageSize;
-
-    private Boolean includeTotal;
+    private Boolean confirmed;
 
     private List<MysqlTableSortRequest> sorts;
 

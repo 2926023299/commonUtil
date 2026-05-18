@@ -5,6 +5,7 @@ import com.tool.otsutil.controller.AuthController;
 import com.tool.otsutil.controller.InspectionController;
 import com.tool.otsutil.exception.ExceptionCatch;
 import com.tool.otsutil.mysqlworkbench.controller.MysqlWorkbenchController;
+import com.tool.otsutil.mysqlworkbench.service.MysqlExportJobService;
 import com.tool.otsutil.mysqlworkbench.service.MysqlSavedQueryService;
 import com.tool.otsutil.mysqlworkbench.service.MysqlWorkbenchService;
 import com.tool.otsutil.service.InspectionImpl.InspectionQueryService;
@@ -49,6 +50,8 @@ class AuthFlowTest {
 
     private MysqlSavedQueryService mysqlSavedQueryService;
 
+    private MysqlExportJobService mysqlExportJobService;
+
     @BeforeEach
     void setUp() {
         inspectionService = mock(InspectionService.class);
@@ -58,6 +61,7 @@ class AuthFlowTest {
         terminalSessionManager = mock(TerminalSessionManager.class);
         mysqlWorkbenchService = mock(MysqlWorkbenchService.class);
         mysqlSavedQueryService = mock(MysqlSavedQueryService.class);
+        mysqlExportJobService = mock(MysqlExportJobService.class);
 
         given(inspectionQueryService.getDashboardSummary()).willReturn(null);
         given(terminalSessionManager.listServers()).willReturn(Collections.emptyList());
@@ -77,7 +81,7 @@ class AuthFlowTest {
                         new AuthController(authService),
                         inspectionController,
                         new ServerConnectionController(terminalSessionManager),
-                        new MysqlWorkbenchController(mysqlWorkbenchService, mysqlSavedQueryService, authService)
+                        new MysqlWorkbenchController(mysqlWorkbenchService, mysqlSavedQueryService, mysqlExportJobService, authService)
                 )
                 .addMappedInterceptors(
                         new String[]{"/Inspection/**", "/server-connections/**", "/mysql-workbench/**"},

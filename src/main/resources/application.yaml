@@ -29,6 +29,16 @@ mybatis-plus:
     db-config:
       id-type: assign_id
 
+mysql-workbench:
+  query:
+    display-limit-default: 1000
+    display-limit-max: 5000
+    table-page-size-max: 200
+  export:
+    dir: ${java.io.tmpdir}/mysql-workbench-exports
+    thread-pool-size: 2
+    retention-hours: 24 
+
 getTokenUser: fuzhou
 
 ots:
@@ -130,11 +140,11 @@ app:
           recursive: false
           check-interval: 10
           stability-threshold: 5000
+
 server-connections:
   idle-timeout-minutes: 0
   cleanup-delay-ms: 60000
   ssh-keepalive-interval-seconds: 30
-
 
 
 jar:

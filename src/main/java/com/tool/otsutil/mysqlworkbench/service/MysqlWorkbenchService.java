@@ -13,6 +13,7 @@ import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableDesignRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableFilterRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableQueryRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableSortRequest;
+import com.tool.otsutil.mysqlworkbench.config.MysqlWorkbenchProperties;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlColumnView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlDesignPreviewView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlHistoryDetailView;
@@ -23,6 +24,7 @@ import com.tool.otsutil.mysqlworkbench.model.view.MysqlSqlBatchResultView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlSqlStatementResultView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableDataPageView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableMetadataView;
+import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableNamePageView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTreeNodeView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlWriteResultView;
 import com.tool.otsutil.mysqlworkbench.util.MysqlIdentifierUtils;
@@ -30,6 +32,7 @@ import com.tool.otsutil.mysqlworkbench.util.MysqlSqlErrorFormatter;
 import com.tool.otsutil.mysqlworkbench.util.MysqlSqlDangerInspector;
 import com.tool.otsutil.mysqlworkbench.util.MysqlTableDesignSqlBuilder;
 import com.tool.otsutil.mysqlworkbench.util.SqlStatementSplitter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -62,21 +65,90 @@ public class MysqlWorkbenchService {
 
     private final MysqlHistoryService mysqlHistoryService;
 
+    private final MysqlWorkbenchProperties properties;
+
     public MysqlWorkbenchService(JdbcTemplate jdbcTemplate, MysqlHistoryService mysqlHistoryService) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.mysqlHistoryService = mysqlHistoryService;
+        this(jdbcTemplate, mysqlHistoryService, new MysqlWorkbenchProperties());
     }
 
-    public List<MysqlTreeNodeView> listTree(boolean includeSystemSchemas) {
+    @Autowired
+    public MysqlWorkbenchService(JdbcTemplate jdbcTemplate,
+                                 MysqlHistoryService mysqlHistoryService,
+                                 MysqlWorkbenchProperties properties) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.mysqlHistoryService = mysqlHistoryService;
+        this.properties = properties == null ? new MysqlWorkbenchProperties() : properties;
+    }
+
+    public List<String> listSchemas(boolean includeSystemSchemas) {
         List<String> schemas = jdbcTemplate.queryForList(
                 "SELECT schema_name FROM information_schema.schemata ORDER BY schema_name",
                 String.class
         );
+        if (includeSystemSchemas) {
+            return schemas;
+        }
+        return schemas.stream()
+                .filter(schema -> !SYSTEM_SCHEMAS.contains(schema))
+                .collect(Collectors.toList());
+    }
+
+    public MysqlTableNamePageView listTablePage(String schema, int page, int pageSize, String keyword) {
+        MysqlIdentifierUtils.validateIdentifier(schema, "schema 名称不合法");
+        if (!schemaExists(schema)) {
+            throw new CustomException(AppHttpCodeEnum.DATA_NOT_EXIST, "schema 不存在: " + schema);
+        }
+        int normalizedPage = page < 1 ? 1 : page;
+        int normalizedPageSize = normalizeTablePageSize(pageSize);
+        int offset = (normalizedPage - 1) * normalizedPageSize;
+        List<String> tables = queryTables(schema, offset, normalizedPageSize + 1, keyword);
+        boolean hasNext = tables.size() > normalizedPageSize;
+        MysqlTableNamePageView pageView = new MysqlTableNamePageView();
+        pageView.setSchema(schema);
+        pageView.setKeyword(keyword == null ? "" : keyword.trim());
+        pageView.setPage(normalizedPage);
+        pageView.setPageSize(normalizedPageSize);
+        pageView.setHasNext(hasNext);
+        pageView.setItems(hasNext ? new ArrayList<String>(tables.subList(0, normalizedPageSize)) : tables);
+        return pageView;
+    }
+
+    public List<String> listTables(String schema, int page, int pageSize, String keyword) {
+        MysqlIdentifierUtils.validateIdentifier(schema, "schema 名称不合法");
+        if (!schemaExists(schema)) {
+            throw new CustomException(AppHttpCodeEnum.DATA_NOT_EXIST, "schema 不存在: " + schema);
+        }
+        int normalizedPage = page < 1 ? 1 : page;
+        int normalizedPageSize = pageSize < 1 ? 50 : Math.min(pageSize, properties.getQuery().getTablePageSizeMax() + 1);
+        int offset = (normalizedPage - 1) * normalizedPageSize;
+        return queryTables(schema, offset, normalizedPageSize, keyword);
+    }
+
+    private List<String> queryTables(String schema, int offset, int limit, String keyword) {
+        String normalizedKeyword = keyword == null ? "" : keyword.trim();
+        if (normalizedKeyword.isEmpty()) {
+            return jdbcTemplate.queryForList(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' ORDER BY table_name LIMIT ? OFFSET ?",
+                    String.class,
+                    schema,
+                    limit,
+                    offset
+            );
+        }
+        return jdbcTemplate.queryForList(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' AND table_name LIKE ? ORDER BY table_name LIMIT ? OFFSET ?",
+                String.class,
+                schema,
+                "%" + normalizedKeyword + "%",
+                limit,
+                offset
+        );
+    }
+
+    public List<MysqlTreeNodeView> listTree(boolean includeSystemSchemas) {
+        List<String> schemas = listSchemas(includeSystemSchemas);
         List<MysqlTreeNodeView> nodes = new ArrayList<MysqlTreeNodeView>();
         for (String schema : schemas) {
-            if (!includeSystemSchemas && SYSTEM_SCHEMAS.contains(schema)) {
-                continue;
-            }
             MysqlTreeNodeView schemaNode = new MysqlTreeNodeView();
             schemaNode.setKey("schema:" + schema);
             schemaNode.setLabel(schema);
@@ -212,40 +284,61 @@ public class MysqlWorkbenchService {
         Set<String> allowedColumns = metadataView.getColumns().stream().map(MysqlColumnView::getName).collect(Collectors.toCollection(LinkedHashSet::new));
 
         int page = request.getPage() == null || request.getPage() < 1 ? 1 : request.getPage();
-        int pageSize = request.getPageSize() == null || request.getPageSize() < 1 ? 50 : Math.min(request.getPageSize(), 10000);
+        int pageSize = request.getPageSize() == null || request.getPageSize() < 1 ? 50 : normalizeTablePageSize(request.getPageSize());
         int offset = (page - 1) * pageSize;
 
         List<Object> parameters = new ArrayList<Object>();
         String whereSql = buildWhereClause(request.getFilters(), allowedColumns, parameters);
         String orderSql = buildOrderClause(request.getSorts(), allowedColumns);
 
-        Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM " + MysqlIdentifierUtils.qualifyTable(request.getSchema(), request.getTable()) + whereSql,
-                parameters.toArray(),
-                Long.class
-        );
+        Long total = null;
+        if (Boolean.TRUE.equals(request.getIncludeTotal())) {
+            total = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM " + MysqlIdentifierUtils.qualifyTable(request.getSchema(), request.getTable()) + whereSql,
+                    parameters.toArray(),
+                    Long.class
+            );
+        }
 
         List<Object> queryParameters = new ArrayList<Object>(parameters);
         queryParameters.add(offset);
-        queryParameters.add(pageSize);
+        queryParameters.add(pageSize + 1);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT * FROM " + MysqlIdentifierUtils.qualifyTable(request.getSchema(), request.getTable()) + whereSql + orderSql + " LIMIT ?, ?",
                 queryParameters.toArray()
         );
+        boolean hasNext = rows.size() > pageSize;
 
         MysqlTableDataPageView pageView = new MysqlTableDataPageView();
         pageView.setSchema(request.getSchema());
         pageView.setTable(request.getTable());
         pageView.setPage(page);
         pageView.setPageSize(pageSize);
-        pageView.setTotal(total == null ? 0L : total);
+        pageView.setTotal(total);
+        pageView.setHasNext(hasNext);
         pageView.setReadOnly(metadataView.getReadOnly());
         pageView.setReadOnlyReason(metadataView.getReadOnlyReason());
         pageView.setKeyColumns(metadataView.getKeyColumns());
-        for (Map<String, Object> row : rows) {
+        List<Map<String, Object>> displayRows = hasNext ? rows.subList(0, pageSize) : rows;
+        for (Map<String, Object> row : displayRows) {
             pageView.getRows().add(new LinkedHashMap<String, Object>(row));
         }
         return pageView;
+    }
+
+    public String buildTableSelectSql(String schema,
+                                      String table,
+                                      List<MysqlTableFilterRequest> filters,
+                                      List<MysqlTableSortRequest> sorts,
+                                      List<Object> parameters) {
+        validateTableRequest(schema, table);
+        MysqlTableMetadataView metadataView = getTableMetadata(schema, table);
+        Set<String> allowedColumns = metadataView.getColumns().stream()
+                .map(MysqlColumnView::getName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        String whereSql = buildWhereClause(filters, allowedColumns, parameters);
+        String orderSql = buildOrderClause(sorts, allowedColumns);
+        return "SELECT * FROM " + MysqlIdentifierUtils.qualifyTable(schema, table) + whereSql + orderSql;
     }
 
     public MysqlWriteResultView insertRow(MysqlRowInsertRequest request) {
@@ -386,8 +479,7 @@ public class MysqlWorkbenchService {
                 connection.setCatalog(schema);
             }
 
-            int maxRows = request.getMaxDisplayRows() != null && request.getMaxDisplayRows() > 0
-                    ? request.getMaxDisplayRows() : 1000;
+            int maxRows = normalizeDisplayLimit(request.getMaxDisplayRows());
 
             for (int index = 0; index < statements.size(); index++) {
                 String statementSql = statements.get(index);
@@ -458,6 +550,8 @@ public class MysqlWorkbenchService {
         resultView.setSql(sql);
         resultView.setType(inspectionResult.getStatementType());
         resultView.setDangerous(inspectionResult.isDangerous());
+        resultView.setDisplayLimit(maxRows);
+        resultView.setTruncated(Boolean.FALSE);
 
         try (Statement statement = connection.createStatement()) {
             statement.setQueryTimeout(60);
@@ -469,20 +563,23 @@ public class MysqlWorkbenchService {
                     for (int columnIndex = 1; columnIndex <= columnCount; columnIndex++) {
                         resultView.getColumns().add(metaData.getColumnLabel(columnIndex));
                     }
-                    long totalRowCount = 0;
+                    long totalRowCount = 0L;
                     while (resultSet.next()) {
                         totalRowCount++;
-                        if (resultView.getRows().size() < maxRows) {
-                            LinkedHashMap<String, Object> row = new LinkedHashMap<String, Object>();
-                            for (int columnIndex = 1; columnIndex <= columnCount; columnIndex++) {
-                                row.put(metaData.getColumnLabel(columnIndex), resultSet.getObject(columnIndex));
-                            }
-                            resultView.getRows().add(row);
+                        if (resultView.getRows().size() >= maxRows) {
+                            resultView.setTruncated(Boolean.TRUE);
+                            continue;
                         }
+                        LinkedHashMap<String, Object> row = new LinkedHashMap<String, Object>();
+                        for (int columnIndex = 1; columnIndex <= columnCount; columnIndex++) {
+                            row.put(metaData.getColumnLabel(columnIndex), resultSet.getObject(columnIndex));
+                        }
+                        resultView.getRows().add(row);
                     }
+                    resultView.setDisplayRowCount(resultView.getRows().size());
                     resultView.setTotalRowCount(totalRowCount);
-                    if (totalRowCount > maxRows) {
-                        resultView.setMessage("返回 " + resultView.getRows().size() + " 行结果，共 " + totalRowCount + " 行");
+                    if (Boolean.TRUE.equals(resultView.getTruncated())) {
+                        resultView.setMessage("返回前 " + resultView.getRows().size() + " / 共 " + totalRowCount + " 行结果，结果已截断");
                     } else {
                         resultView.setMessage("返回 " + resultView.getRows().size() + " 行结果");
                     }
@@ -613,6 +710,21 @@ public class MysqlWorkbenchService {
             }
         }
         return null;
+    }
+
+    private int normalizeTablePageSize(Integer pageSize) {
+        int max = properties.getQuery().getTablePageSizeMax() <= 0 ? 200 : properties.getQuery().getTablePageSizeMax();
+        if (pageSize == null || pageSize < 1) {
+            return 50;
+        }
+        return Math.min(pageSize, max);
+    }
+
+    private int normalizeDisplayLimit(Integer maxDisplayRows) {
+        int defaultLimit = properties.getQuery().getDisplayLimitDefault() <= 0 ? 1000 : properties.getQuery().getDisplayLimitDefault();
+        int maxLimit = properties.getQuery().getDisplayLimitMax() <= 0 ? 5000 : properties.getQuery().getDisplayLimitMax();
+        int requested = maxDisplayRows == null || maxDisplayRows < 1 ? defaultLimit : maxDisplayRows;
+        return Math.min(requested, maxLimit);
     }
 
     private String toSqlOperator(String operator) {
