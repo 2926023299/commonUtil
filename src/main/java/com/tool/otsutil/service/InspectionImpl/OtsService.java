@@ -19,11 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -268,5 +264,92 @@ public class OtsService {
         int measure = Integer.parseInt(new BigDecimal(key).toBigInteger().toString(2).substring(32, 47), 2);
 
         return measureType.values()[measure];
+    }
+
+    // ---- OTS 查询工具方法 ----
+
+    /**
+     * 获取所有表名列表
+     */
+    public List<String> listTables() {
+        ListTableResponse response = otsClient.listTable();
+        return response.getTableNames();
+    }
+
+    /**
+     * 获取表结构信息
+     */
+    public Map<String, Object> describeTable(String tableName) {
+        DescribeTableRequest request = new DescribeTableRequest(tableName);
+        DescribeTableResponse response = otsClient.describeTable(request);
+        TableMeta tableMeta = response.getTableMeta();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("tableName", tableMeta.getTableName());
+
+        // 主键列 - 使用 getPrimaryKeyMap() 获取
+        List<Map<String, String>> primaryKeyColumns = new ArrayList<>();
+        Map<String, PrimaryKeyType> pkMap = tableMeta.getPrimaryKeyMap();
+        for (Map.Entry<String, PrimaryKeyType> entry : pkMap.entrySet()) {
+            Map<String, String> col = new LinkedHashMap<>();
+            col.put("name", entry.getKey());
+            col.put("type", entry.getValue().name());
+            primaryKeyColumns.add(col);
+        }
+        result.put("primaryKeyColumns", primaryKeyColumns);
+
+        return result;
+    }
+
+    /**
+     * 按 key 范围查询数据
+     */
+    public Map<String, Object> getRange(String tableName, String keyName, String startKey, String endKey, int limit) {
+        RangeRowQueryCriteria criteria = new RangeRowQueryCriteria(tableName);
+
+        // 设置起始主键
+        PrimaryKeyBuilder startBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+        startBuilder.addPrimaryKeyColumn(keyName, PrimaryKeyValue.fromString(startKey));
+        criteria.setInclusiveStartPrimaryKey(startBuilder.build());
+
+        // 设置结束主键
+        PrimaryKeyBuilder endBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
+        endBuilder.addPrimaryKeyColumn(keyName, PrimaryKeyValue.fromString(endKey));
+        criteria.setExclusiveEndPrimaryKey(endBuilder.build());
+
+        criteria.setMaxVersions(1);
+
+        if (limit > 0) {
+            criteria.setLimit(limit);
+        }
+
+        GetRangeResponse response = otsClient.getRange(new GetRangeRequest(criteria));
+        List<Map<String, Object>> rows = new ArrayList<>();
+
+        while (true) {
+            for (Row row : response.getRows()) {
+                Map<String, Object> rowData = new LinkedHashMap<>();
+                rowData.put("key", row.getPrimaryKey().getPrimaryKeyColumn(0).getValue().asString());
+
+                // 使用 getColumns() 获取所有列
+                for (Column column : row.getColumns()) {
+                    rowData.put(column.getName(), column.getValue().asString());
+                }
+                rows.add(rowData);
+            }
+
+            // 检查是否还有更多数据
+            if (response.getNextStartPrimaryKey() == null) {
+                break;
+            }
+            criteria.setInclusiveStartPrimaryKey(response.getNextStartPrimaryKey());
+            response = otsClient.getRange(new GetRangeRequest(criteria));
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("tableName", tableName);
+        result.put("rows", rows);
+        result.put("count", rows.size());
+        return result;
     }
 }
