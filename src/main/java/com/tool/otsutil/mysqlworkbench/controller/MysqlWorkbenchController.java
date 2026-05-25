@@ -17,6 +17,7 @@ import com.tool.otsutil.mysqlworkbench.model.view.MysqlHistoryDetailView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlHistoryPageView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlSavedQueryView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlSqlBatchResultView;
+import com.tool.otsutil.mysqlworkbench.model.view.MysqlSqlExecutionView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableDataPageView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableMetadataView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlTableNamePageView;
@@ -24,6 +25,7 @@ import com.tool.otsutil.mysqlworkbench.model.view.MysqlTreeNodeView;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlWriteResultView;
 import com.tool.otsutil.mysqlworkbench.service.MysqlExportJobService;
 import com.tool.otsutil.mysqlworkbench.service.MysqlSavedQueryService;
+import com.tool.otsutil.mysqlworkbench.service.MysqlSqlExecutionService;
 import com.tool.otsutil.mysqlworkbench.service.MysqlWorkbenchService;
 import com.tool.otsutil.service.auth.AuthService;
 import org.springframework.core.io.FileSystemResource;
@@ -46,6 +48,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.Arrays;
 
 @RestController
 @RequestMapping("/mysql-workbench")
@@ -57,15 +62,19 @@ public class MysqlWorkbenchController {
 
     private final MysqlExportJobService mysqlExportJobService;
 
+    private final MysqlSqlExecutionService mysqlSqlExecutionService;
+
     private final AuthService authService;
 
     public MysqlWorkbenchController(MysqlWorkbenchService mysqlWorkbenchService,
                                     MysqlSavedQueryService mysqlSavedQueryService,
                                     MysqlExportJobService mysqlExportJobService,
+                                    MysqlSqlExecutionService mysqlSqlExecutionService,
                                     AuthService authService) {
         this.mysqlWorkbenchService = mysqlWorkbenchService;
         this.mysqlSavedQueryService = mysqlSavedQueryService;
         this.mysqlExportJobService = mysqlExportJobService;
+        this.mysqlSqlExecutionService = mysqlSqlExecutionService;
         this.authService = authService;
     }
 
@@ -80,6 +89,12 @@ public class MysqlWorkbenchController {
                                                              @RequestParam(defaultValue = "100") int pageSize,
                                                              @RequestParam(required = false) String keyword) {
         return ResponseResult.okResult(mysqlWorkbenchService.listTablePage(schema, page, pageSize, keyword));
+    }
+
+    @GetMapping("/schemas/{schema}/columns")
+    public ResponseResult<Map<String, List<String>>> listColumns(@PathVariable String schema,
+                                                                 @RequestParam(defaultValue = "") String tables) {
+        return ResponseResult.okResult(mysqlWorkbenchService.listTableColumns(schema, parseCommaSeparatedList(tables)));
     }
 
     @GetMapping("/tree")
@@ -134,6 +149,22 @@ public class MysqlWorkbenchController {
     public ResponseResult<MysqlSqlBatchResultView> executeSql(@RequestBody MysqlSqlExecuteRequest request,
                                                               HttpServletRequest servletRequest) {
         return ResponseResult.okResult(mysqlWorkbenchService.executeSql(request, currentUsername(servletRequest)));
+    }
+
+    @PostMapping("/sql/executions")
+    public ResponseResult<MysqlSqlExecutionView> createSqlExecution(@RequestBody MysqlSqlExecuteRequest request,
+                                                                    HttpServletRequest servletRequest) {
+        return ResponseResult.okResult(mysqlSqlExecutionService.createExecution(request, currentUsername(servletRequest)));
+    }
+
+    @GetMapping("/sql/executions/{executionId}")
+    public ResponseResult<MysqlSqlExecutionView> getSqlExecution(@PathVariable String executionId) {
+        return ResponseResult.okResult(mysqlSqlExecutionService.getExecution(executionId));
+    }
+
+    @PostMapping("/sql/executions/{executionId}/cancel")
+    public ResponseResult<MysqlSqlExecutionView> cancelSqlExecution(@PathVariable String executionId) {
+        return ResponseResult.okResult(mysqlSqlExecutionService.cancelExecution(executionId));
     }
 
     @GetMapping("/history")
@@ -208,5 +239,12 @@ public class MysqlWorkbenchController {
             return new MediaType("text", "sql", StandardCharsets.UTF_8);
         }
         return MediaType.APPLICATION_OCTET_STREAM;
+    }
+
+    private List<String> parseCommaSeparatedList(String value) {
+        return Arrays.stream((value == null ? "" : value).split(","))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .collect(Collectors.toList());
     }
 }

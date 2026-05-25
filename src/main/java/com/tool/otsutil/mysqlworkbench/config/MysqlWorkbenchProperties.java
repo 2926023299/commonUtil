@@ -21,6 +21,10 @@ public class MysqlWorkbenchProperties {
         private int displayLimitMax = 5000;
 
         private int tablePageSizeMax = 200;
+
+        private int metadataCacheTtlSeconds = 600;
+
+        private int statementTimeoutSeconds = 600;
     }
 
     @Data

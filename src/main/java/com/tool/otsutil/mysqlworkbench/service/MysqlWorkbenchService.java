@@ -54,6 +54,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,11 +63,15 @@ public class MysqlWorkbenchService {
 
     private static final List<String> SYSTEM_SCHEMAS = Arrays.asList("information_schema", "mysql", "performance_schema", "sys");
 
+    private static final int DEFAULT_STATEMENT_TIMEOUT_SECONDS = 600;
+
     private final JdbcTemplate jdbcTemplate;
 
     private final MysqlHistoryService mysqlHistoryService;
 
     private final MysqlWorkbenchProperties properties;
+
+    private final ConcurrentMap<String, TableMetadataCacheEntry> tableMetadataCache = new ConcurrentHashMap<String, TableMetadataCacheEntry>();
 
     public MysqlWorkbenchService(JdbcTemplate jdbcTemplate, MysqlHistoryService mysqlHistoryService) {
         this(jdbcTemplate, mysqlHistoryService, new MysqlWorkbenchProperties());
@@ -173,6 +179,28 @@ public class MysqlWorkbenchService {
     public MysqlTableMetadataView getTableMetadata(String schema, String table) {
         MysqlIdentifierUtils.validateIdentifier(schema, "schema 名称不合法");
         MysqlIdentifierUtils.validateIdentifier(table, "表名不合法");
+        long now = System.currentTimeMillis();
+        String cacheKey = buildMetadataCacheKey(schema, table);
+        TableMetadataCacheEntry cached = tableMetadataCache.get(cacheKey);
+        if (isValidMetadataCacheEntry(cached, now)) {
+            return cached.metadata;
+        }
+
+        synchronized (tableMetadataCache) {
+            cached = tableMetadataCache.get(cacheKey);
+            if (isValidMetadataCacheEntry(cached, System.currentTimeMillis())) {
+                return cached.metadata;
+            }
+            MysqlTableMetadataView metadataView = loadTableMetadata(schema, table);
+            long ttlMillis = metadataCacheTtlMillis();
+            if (ttlMillis > 0) {
+                tableMetadataCache.put(cacheKey, new TableMetadataCacheEntry(metadataView, System.currentTimeMillis()));
+            }
+            return metadataView;
+        }
+    }
+
+    private MysqlTableMetadataView loadTableMetadata(String schema, String table) {
         if (!tableExists(schema, table)) {
             throw new CustomException(AppHttpCodeEnum.DATA_NOT_EXIST, "表不存在: " + schema + "." + table);
         }
@@ -262,6 +290,64 @@ public class MysqlWorkbenchService {
         metadataView.setReadOnly(readOnly);
         metadataView.setReadOnlyReason(readOnly ? "该表缺少主键或唯一索引，仅支持只读浏览" : "");
         return metadataView;
+    }
+
+    public Map<String, List<String>> listTableColumns(String schema, List<String> tables) {
+        MysqlIdentifierUtils.validateIdentifier(schema, "schema 名称不合法");
+        if (!schemaExists(schema)) {
+            throw new CustomException(AppHttpCodeEnum.DATA_NOT_EXIST, "schema 不存在: " + schema);
+        }
+        LinkedHashSet<String> normalizedTables = new LinkedHashSet<String>();
+        if (tables != null) {
+            for (String table : tables) {
+                if (table == null || table.trim().isEmpty()) {
+                    continue;
+                }
+                String tableName = table.trim();
+                MysqlIdentifierUtils.validateIdentifier(tableName, "表名不合法");
+                normalizedTables.add(tableName);
+            }
+        }
+        Map<String, List<String>> columnsByTable = new LinkedHashMap<String, List<String>>();
+        for (String table : normalizedTables) {
+            columnsByTable.put(table, new ArrayList<String>());
+        }
+        if (normalizedTables.isEmpty()) {
+            return columnsByTable;
+        }
+
+        String placeholders = normalizedTables.stream()
+                .map(table -> "?")
+                .collect(Collectors.joining(", "));
+        List<Object> parameters = new ArrayList<Object>();
+        parameters.add(schema);
+        parameters.addAll(normalizedTables);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT c.table_name, c.column_name FROM information_schema.columns c "
+                        + "JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name "
+                        + "WHERE c.table_schema = ? AND t.table_type = 'BASE TABLE' AND c.table_name IN (" + placeholders + ") "
+                        + "ORDER BY c.table_name, c.ordinal_position",
+                parameters.toArray()
+        );
+        for (Map<String, Object> row : rows) {
+            String tableName = String.valueOf(row.get("table_name"));
+            List<String> columns = columnsByTable.get(tableName);
+            if (columns != null) {
+                columns.add(String.valueOf(row.get("column_name")));
+            }
+        }
+        return columnsByTable;
+    }
+
+    public void invalidateTableMetadata(String schema, String table) {
+        if (schema == null || table == null) {
+            return;
+        }
+        tableMetadataCache.remove(buildMetadataCacheKey(schema, table));
+    }
+
+    public void clearTableMetadataCache() {
+        tableMetadataCache.clear();
     }
 
     public String getTableDdl(String schema, String table) {
@@ -438,10 +524,19 @@ public class MysqlWorkbenchService {
         executeRequest.setSchema(request.getSchema());
         executeRequest.setSql(String.join(";\n", previewView.getStatements()));
         executeRequest.setConfirmed(Boolean.TRUE);
-        return executeSql(executeRequest, executedBy);
+        MysqlSqlBatchResultView resultView = executeSql(executeRequest, executedBy);
+        invalidateTableMetadata(request.getSchema(), request.getTable());
+        return resultView;
     }
 
     public MysqlSqlBatchResultView executeSql(MysqlSqlExecuteRequest request, String executedBy) {
+        return executeSql(request, executedBy, new MysqlSqlExecutionControl());
+    }
+
+    public MysqlSqlBatchResultView executeSql(MysqlSqlExecuteRequest request,
+                                              String executedBy,
+                                              MysqlSqlExecutionControl executionControl) {
+        MysqlSqlExecutionControl control = executionControl == null ? new MysqlSqlExecutionControl() : executionControl;
         String schema = request.getSchema();
         if (schema != null && !schema.trim().isEmpty()) {
             MysqlIdentifierUtils.validateIdentifier(schema, "schema 名称不合法");
@@ -473,7 +568,22 @@ public class MysqlWorkbenchService {
 
         String status = "SUCCESS";
         String originalCatalog = null;
+        if (control.isCancelled()) {
+            status = "CANCELED";
+            batchResultView.setSuccess(Boolean.FALSE);
+            batchResultView.setStatus(status);
+            batchResultView.setMessage("SQL 执行已取消");
+            mysqlHistoryService.finishBatch(batchId, status, LocalDateTime.now());
+            return batchResultView;
+        }
         try (Connection connection = getConnection()) {
+            if (control.isCancelled()) {
+                status = "CANCELED";
+                batchResultView.setSuccess(Boolean.FALSE);
+                batchResultView.setStatus(status);
+                batchResultView.setMessage("SQL 执行已取消");
+                return batchResultView;
+            }
             if (schema != null && !schema.trim().isEmpty()) {
                 originalCatalog = connection.getCatalog();
                 connection.setCatalog(schema);
@@ -482,9 +592,16 @@ public class MysqlWorkbenchService {
             int maxRows = normalizeDisplayLimit(request.getMaxDisplayRows());
 
             for (int index = 0; index < statements.size(); index++) {
+                if (control.isCancelled()) {
+                    status = "CANCELED";
+                    batchResultView.setSuccess(Boolean.FALSE);
+                    batchResultView.setStatus(status);
+                    batchResultView.setMessage("SQL 执行已取消");
+                    break;
+                }
                 String statementSql = statements.get(index);
                 MysqlSqlDangerInspector.InspectionResult inspectionResult = MysqlSqlDangerInspector.inspect(statementSql);
-                MysqlSqlStatementResultView statementResultView = executeSingleStatement(connection, index + 1, statementSql, inspectionResult, maxRows);
+                MysqlSqlStatementResultView statementResultView = executeSingleStatement(connection, index + 1, statementSql, inspectionResult, maxRows, control);
                 batchResultView.getResults().add(statementResultView);
                 mysqlHistoryService.recordStatement(
                         batchId,
@@ -500,6 +617,14 @@ public class MysqlWorkbenchService {
                         statementResultView.getError() == null ? null : statementResultView.getError().getSqlState(),
                         statementResultView.getError() == null ? null : statementResultView.getError().getCategory()
                 );
+                if (control.isCancelled()) {
+                    status = "CANCELED";
+                    batchResultView.setSuccess(Boolean.FALSE);
+                    batchResultView.setStatus(status);
+                    batchResultView.setFailedStatementIndex(index + 1);
+                    batchResultView.setMessage("SQL 执行已取消");
+                    break;
+                }
                 if (!Boolean.TRUE.equals(statementResultView.getSuccess())) {
                     status = "FAILED";
                     batchResultView.setSuccess(Boolean.FALSE);
@@ -510,11 +635,18 @@ public class MysqlWorkbenchService {
                 }
             }
         } catch (SQLException e) {
-            status = "FAILED";
-            batchResultView.setSuccess(Boolean.FALSE);
-            batchResultView.setStatus(status);
-            batchResultView.setMessage(MysqlSqlErrorFormatter.toDisplayMessage(e));
-            throw new CustomException(AppHttpCodeEnum.SERVER_ERROR, e.getMessage());
+            if (control.isCancelled()) {
+                status = "CANCELED";
+                batchResultView.setSuccess(Boolean.FALSE);
+                batchResultView.setStatus(status);
+                batchResultView.setMessage("SQL 执行已取消");
+            } else {
+                status = "FAILED";
+                batchResultView.setSuccess(Boolean.FALSE);
+                batchResultView.setStatus(status);
+                batchResultView.setMessage(MysqlSqlErrorFormatter.toDisplayMessage(e));
+                throw new CustomException(AppHttpCodeEnum.SERVER_ERROR, e.getMessage());
+            }
         } finally {
             if (originalCatalog != null) {
                 try (Connection conn = getConnection()) {
@@ -524,9 +656,12 @@ public class MysqlWorkbenchService {
             }
             mysqlHistoryService.finishBatch(batchId, status, LocalDateTime.now());
         }
-        if (!"FAILED".equals(status)) {
+        if ("SUCCESS".equals(status)) {
             batchResultView.setStatus(status);
             batchResultView.setMessage("执行成功，共 " + statements.size() + " 条语句");
+            if (containsMetadataChangingStatement(statements)) {
+                clearTableMetadataCache();
+            }
         }
         return batchResultView;
     }
@@ -543,7 +678,8 @@ public class MysqlWorkbenchService {
                                                                int statementIndex,
                                                                String sql,
                                                                MysqlSqlDangerInspector.InspectionResult inspectionResult,
-                                                               int maxRows) {
+                                                               int maxRows,
+                                                               MysqlSqlExecutionControl executionControl) {
         long startedAt = System.currentTimeMillis();
         MysqlSqlStatementResultView resultView = new MysqlSqlStatementResultView();
         resultView.setIndex(statementIndex);
@@ -553,10 +689,14 @@ public class MysqlWorkbenchService {
         resultView.setDisplayLimit(maxRows);
         resultView.setTruncated(Boolean.FALSE);
 
+        Statement currentStatement = null;
         try (Statement statement = connection.createStatement()) {
-            statement.setQueryTimeout(60);
-            boolean hasResultSet = statement.execute(sql);
-            if (hasResultSet) {
+            currentStatement = statement;
+            statement.setQueryTimeout(resolveStatementTimeoutSeconds());
+            executionControl.bindStatement(statement);
+            if (executionControl.isCancelled()) {
+                markStatementCanceled(resultView);
+            } else if (statement.execute(sql)) {
                 try (ResultSet resultSet = statement.getResultSet()) {
                     ResultSetMetaData metaData = resultSet.getMetaData();
                     int columnCount = metaData.getColumnCount();
@@ -590,16 +730,34 @@ public class MysqlWorkbenchService {
                 resultView.setAffectedRows(affectedRows);
                 resultView.setMessage("影响 " + affectedRows + " 行");
             }
-            resultView.setSuccess(Boolean.TRUE);
+            if (executionControl.isCancelled()) {
+                markStatementCanceled(resultView);
+            } else {
+                resultView.setSuccess(Boolean.TRUE);
+            }
         } catch (SQLException e) {
-            MysqlSqlErrorView errorView = MysqlSqlErrorFormatter.format(e);
-            resultView.setSuccess(Boolean.FALSE);
-            resultView.setError(errorView);
-            resultView.setMessage(MysqlSqlErrorFormatter.toDisplayMessage(e));
-            resultView.setAffectedRows(0L);
+            if (executionControl.isCancelled()) {
+                markStatementCanceled(resultView);
+            } else {
+                MysqlSqlErrorView errorView = MysqlSqlErrorFormatter.format(e);
+                resultView.setSuccess(Boolean.FALSE);
+                resultView.setError(errorView);
+                resultView.setMessage(MysqlSqlErrorFormatter.toDisplayMessage(e));
+                resultView.setAffectedRows(0L);
+            }
+        } finally {
+            if (currentStatement != null) {
+                executionControl.clearStatement(currentStatement);
+            }
         }
         resultView.setDurationMs(System.currentTimeMillis() - startedAt);
         return resultView;
+    }
+
+    private void markStatementCanceled(MysqlSqlStatementResultView resultView) {
+        resultView.setSuccess(Boolean.FALSE);
+        resultView.setMessage("SQL 执行已取消");
+        resultView.setAffectedRows(0L);
     }
 
     private String buildWhereClause(List<MysqlTableFilterRequest> filters, Set<String> allowedColumns, List<Object> parameters) {
@@ -762,11 +920,60 @@ public class MysqlWorkbenchService {
         return total != null && total > 0;
     }
 
+    private String buildMetadataCacheKey(String schema, String table) {
+        return String.valueOf(schema) + "." + String.valueOf(table);
+    }
+
+    private boolean isValidMetadataCacheEntry(TableMetadataCacheEntry entry, long now) {
+        long ttlMillis = metadataCacheTtlMillis();
+        return ttlMillis > 0 && entry != null && now - entry.loadedAtMillis < ttlMillis;
+    }
+
+    private long metadataCacheTtlMillis() {
+        int ttlSeconds = properties.getQuery().getMetadataCacheTtlSeconds();
+        if (ttlSeconds <= 0) {
+            return 0L;
+        }
+        return ttlSeconds * 1000L;
+    }
+
+    private int resolveStatementTimeoutSeconds() {
+        if (properties.getQuery() == null || properties.getQuery().getStatementTimeoutSeconds() <= 0) {
+            return DEFAULT_STATEMENT_TIMEOUT_SECONDS;
+        }
+        return properties.getQuery().getStatementTimeoutSeconds();
+    }
+
+    private boolean containsMetadataChangingStatement(List<String> statements) {
+        if (statements == null || statements.isEmpty()) {
+            return false;
+        }
+        for (String statement : statements) {
+            String normalized = statement == null ? "" : statement.trim().toLowerCase(Locale.ROOT);
+            if (normalized.matches("^(create|alter|drop|rename|truncate)\\b[\\s\\S]*")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private Connection getConnection() throws SQLException {
         DataSource dataSource = jdbcTemplate.getDataSource();
         if (dataSource == null) {
             throw new SQLException("数据源未初始化");
         }
         return dataSource.getConnection();
+    }
+
+    private static class TableMetadataCacheEntry {
+
+        private final MysqlTableMetadataView metadata;
+
+        private final long loadedAtMillis;
+
+        private TableMetadataCacheEntry(MysqlTableMetadataView metadata, long loadedAtMillis) {
+            this.metadata = metadata;
+            this.loadedAtMillis = loadedAtMillis;
+        }
     }
 }

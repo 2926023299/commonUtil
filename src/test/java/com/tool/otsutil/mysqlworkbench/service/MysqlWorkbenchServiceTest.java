@@ -2,6 +2,7 @@ package com.tool.otsutil.mysqlworkbench.service;
 
 import com.tool.otsutil.exception.CustomException;
 import com.tool.otsutil.model.common.AppHttpCodeEnum;
+import com.tool.otsutil.mysqlworkbench.config.MysqlWorkbenchProperties;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlSqlExecuteRequest;
 import com.tool.otsutil.mysqlworkbench.model.request.MysqlTableQueryRequest;
 import com.tool.otsutil.mysqlworkbench.model.view.MysqlSqlBatchResultView;
@@ -18,6 +19,7 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class MysqlWorkbenchServiceTest {
@@ -161,6 +164,85 @@ class MysqlWorkbenchServiceTest {
     }
 
     @Test
+    void shouldApplyConfiguredStatementTimeoutWhenExecutingSql() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        MysqlHistoryService mysqlHistoryService = mock(MysqlHistoryService.class);
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        Statement statement = mock(Statement.class);
+        MysqlWorkbenchProperties properties = new MysqlWorkbenchProperties();
+        properties.getQuery().setStatementTimeoutSeconds(900);
+        MysqlWorkbenchService service = new MysqlWorkbenchService(jdbcTemplate, mysqlHistoryService, properties);
+
+        MysqlSqlExecuteRequest request = new MysqlSqlExecuteRequest();
+        request.setSql("update slow_table set touched = 1 where id = 1");
+
+        given(mysqlHistoryService.startBatch(any(), eq(request.getSql()), anyInt(), anyBoolean(), eq("tester"), any(LocalDateTime.class)))
+                .willReturn(125L);
+        given(jdbcTemplate.getDataSource()).willReturn(dataSource);
+        given(dataSource.getConnection()).willReturn(connection);
+        given(connection.createStatement()).willReturn(statement);
+        given(statement.execute(request.getSql())).willReturn(false);
+        given(statement.getUpdateCount()).willReturn(1);
+
+        service.executeSql(request, "tester");
+
+        verify(statement).setQueryTimeout(900);
+    }
+
+    @Test
+    void shouldFallBackToDefaultStatementTimeoutWhenConfiguredValueIsInvalid() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        MysqlHistoryService mysqlHistoryService = mock(MysqlHistoryService.class);
+        DataSource dataSource = mock(DataSource.class);
+        Connection connection = mock(Connection.class);
+        Statement statement = mock(Statement.class);
+        MysqlWorkbenchProperties properties = new MysqlWorkbenchProperties();
+        properties.getQuery().setStatementTimeoutSeconds(0);
+        MysqlWorkbenchService service = new MysqlWorkbenchService(jdbcTemplate, mysqlHistoryService, properties);
+
+        MysqlSqlExecuteRequest request = new MysqlSqlExecuteRequest();
+        request.setSql("select * from slow_table");
+
+        given(mysqlHistoryService.startBatch(any(), eq(request.getSql()), anyInt(), anyBoolean(), eq("tester"), any(LocalDateTime.class)))
+                .willReturn(126L);
+        given(jdbcTemplate.getDataSource()).willReturn(dataSource);
+        given(dataSource.getConnection()).willReturn(connection);
+        given(connection.createStatement()).willReturn(statement);
+        given(statement.execute(request.getSql())).willReturn(false);
+        given(statement.getUpdateCount()).willReturn(0);
+
+        service.executeSql(request, "tester");
+
+        verify(statement).setQueryTimeout(600);
+    }
+
+    @Test
+    void shouldReturnCanceledResultWithoutOpeningConnectionWhenExecutionIsAlreadyCancelled() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        MysqlHistoryService mysqlHistoryService = mock(MysqlHistoryService.class);
+        DataSource dataSource = mock(DataSource.class);
+        MysqlWorkbenchService service = new MysqlWorkbenchService(jdbcTemplate, mysqlHistoryService);
+        MysqlSqlExecutionControl executionControl = new MysqlSqlExecutionControl();
+        executionControl.cancel();
+
+        MysqlSqlExecuteRequest request = new MysqlSqlExecuteRequest();
+        request.setSql("select * from slow_table");
+
+        given(mysqlHistoryService.startBatch(any(), eq(request.getSql()), anyInt(), anyBoolean(), eq("tester"), any(LocalDateTime.class)))
+                .willReturn(127L);
+        given(jdbcTemplate.getDataSource()).willReturn(dataSource);
+
+        MysqlSqlBatchResultView result = service.executeSql(request, "tester", executionControl);
+
+        assertEquals("CANCELED", result.getStatus());
+        assertFalse(result.getSuccess());
+        assertEquals("SQL 执行已取消", result.getMessage());
+        verify(dataSource, never()).getConnection();
+        verify(mysqlHistoryService).finishBatch(eq(127L), eq("CANCELED"), any(LocalDateTime.class));
+    }
+
+    @Test
     void shouldQueryTableDataWithoutCountingByDefault() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         MysqlHistoryService mysqlHistoryService = mock(MysqlHistoryService.class);
@@ -208,6 +290,82 @@ class MysqlWorkbenchServiceTest {
                 any(Object[].class),
                 eq(Long.class)
         );
+    }
+
+    @Test
+    void shouldCacheTableMetadataBetweenRepeatedLoads() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        MysqlHistoryService mysqlHistoryService = mock(MysqlHistoryService.class);
+        MysqlWorkbenchService service = new MysqlWorkbenchService(jdbcTemplate, mysqlHistoryService);
+
+        given(jdbcTemplate.queryForObject(
+                eq("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ? AND table_type = 'BASE TABLE'"),
+                eq(Long.class),
+                eq("ies_ls"),
+                eq("inspection_table")
+        )).willReturn(1L);
+        given(jdbcTemplate.queryForMap(
+                eq("SELECT engine, table_collation, table_comment FROM information_schema.tables WHERE table_schema = ? AND table_name = ? AND table_type = 'BASE TABLE'"),
+                eq("ies_ls"),
+                eq("inspection_table")
+        )).willReturn(row("engine", "InnoDB", "table_collation", "utf8mb4_general_ci", "table_comment", ""));
+        given(jdbcTemplate.queryForList(
+                eq("SELECT column_name, data_type, column_type, character_maximum_length, numeric_precision, numeric_scale, is_nullable, column_default, column_comment, extra FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position"),
+                eq("ies_ls"),
+                eq("inspection_table")
+        )).willReturn(Collections.singletonList(columnRow("id")));
+        given(jdbcTemplate.queryForList(
+                eq("SELECT index_name, non_unique, column_name, seq_in_index FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? ORDER BY index_name, seq_in_index"),
+                eq("ies_ls"),
+                eq("inspection_table")
+        )).willReturn(Collections.singletonList(primaryIndexRow("id")));
+
+        service.getTableMetadata("ies_ls", "inspection_table");
+        service.getTableMetadata("ies_ls", "inspection_table");
+
+        verify(jdbcTemplate, times(1)).queryForMap(
+                eq("SELECT engine, table_collation, table_comment FROM information_schema.tables WHERE table_schema = ? AND table_name = ? AND table_type = 'BASE TABLE'"),
+                eq("ies_ls"),
+                eq("inspection_table")
+        );
+        verify(jdbcTemplate, times(1)).queryForList(
+                eq("SELECT column_name, data_type, column_type, character_maximum_length, numeric_precision, numeric_scale, is_nullable, column_default, column_comment, extra FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position"),
+                eq("ies_ls"),
+                eq("inspection_table")
+        );
+    }
+
+    @Test
+    void shouldListColumnsForMultipleTablesInOneQuery() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        MysqlHistoryService mysqlHistoryService = mock(MysqlHistoryService.class);
+        MysqlWorkbenchService service = new MysqlWorkbenchService(jdbcTemplate, mysqlHistoryService);
+
+        given(jdbcTemplate.queryForObject(
+                eq("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = ?"),
+                eq(Long.class),
+                eq("ies_xs")
+        )).willReturn(1L);
+        given(jdbcTemplate.queryForList(
+                eq("SELECT c.table_name, c.column_name FROM information_schema.columns c "
+                        + "JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name "
+                        + "WHERE c.table_schema = ? AND t.table_type = 'BASE TABLE' AND c.table_name IN (?, ?) "
+                        + "ORDER BY c.table_name, c.ordinal_position"),
+                eq("ies_xs"),
+                eq("breaker"),
+                eq("feeder")
+        )).willReturn(Arrays.asList(
+                row("table_name", "breaker", "column_name", "id"),
+                row("table_name", "breaker", "column_name", "name"),
+                row("table_name", "feeder", "column_name", "feeder_id")
+        ));
+
+        Map<String, List<String>> columns = service.listTableColumns("ies_xs", Arrays.asList("breaker", "feeder", "breaker"));
+
+        Map<String, List<String>> expected = new LinkedHashMap<String, List<String>>();
+        expected.put("breaker", Arrays.asList("id", "name"));
+        expected.put("feeder", Collections.singletonList("feeder_id"));
+        assertEquals(expected, columns);
     }
 
     @Test
