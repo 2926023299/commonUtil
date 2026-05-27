@@ -11,6 +11,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 class TerminalSessionRecord {
 
+    static final int MAX_BUFFERED_MESSAGES = 2000;
+
     private final String sessionId = UUID.randomUUID().toString();
     private final String serverKey;
     private final String displayName;

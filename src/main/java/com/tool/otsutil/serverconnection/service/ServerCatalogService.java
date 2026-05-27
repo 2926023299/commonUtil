@@ -70,7 +70,7 @@ public class ServerCatalogService {
         throw new CustomException(AppHttpCodeEnum.DATA_NOT_EXIST, "服务器配置不存在");
     }
 
-    public String buildServerKey(ServerConfig serverConfig) {
+    public static String buildServerKey(ServerConfig serverConfig) {
         return serverConfig.getIp() + ":" + serverConfig.getPort() + ":" + serverConfig.getUsername();
     }
 

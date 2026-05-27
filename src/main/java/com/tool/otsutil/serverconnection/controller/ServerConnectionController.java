@@ -10,7 +10,7 @@ import com.tool.otsutil.serverconnection.model.view.RemoteFileListView;
 import com.tool.otsutil.serverconnection.model.view.ServerConnectionView;
 import com.tool.otsutil.serverconnection.model.view.TerminalSessionView;
 import com.tool.otsutil.serverconnection.service.TerminalSessionManager;
-import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -87,17 +87,19 @@ public class ServerConnectionController {
     }
 
     @GetMapping("/sessions/{sessionId}/download")
-    public ResponseEntity<ByteArrayResource> download(@PathVariable String sessionId,
-                                                      @RequestParam String path) throws IOException {
-        DownloadedRemoteFile file = terminalSessionManager.downloadFile(sessionId, path);
+    public ResponseEntity<InputStreamResource> download(@PathVariable String sessionId,
+                                                        @RequestParam String path) throws IOException {
+        DownloadedRemoteFile file = terminalSessionManager.streamFile(sessionId, path);
         String encodedFileName = URLEncoder.encode(file.getFileName(), StandardCharsets.UTF_8.name()).replace("+", "%20");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(file.getContentType()));
-        headers.setContentLength(file.getContent().length);
         headers.add(HttpHeaders.CONTENT_DISPOSITION,
                 "attachment; filename=\"" + file.getFileName() + "\"; filename*=UTF-8''" + encodedFileName);
+        if (file.getContentLength() >= 0) {
+            headers.setContentLength(file.getContentLength());
+        }
         return ResponseEntity.ok()
                 .headers(headers)
-                .body(new ByteArrayResource(file.getContent()));
+                .body(new InputStreamResource(file.getContentStream()));
     }
 }

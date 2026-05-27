@@ -17,6 +17,8 @@ public class MysqlDesignColumnRequest {
 
     private Boolean autoIncrement;
 
+    private Boolean defaultValuePresent;
+
     private String defaultValue;
 
     private String comment;

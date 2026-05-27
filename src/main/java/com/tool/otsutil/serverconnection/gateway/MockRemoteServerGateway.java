@@ -6,6 +6,7 @@ import com.tool.otsutil.model.dto.inspection.ServerConfig;
 import com.tool.otsutil.serverconnection.model.view.RemoteBreadcrumbItemView;
 import com.tool.otsutil.serverconnection.model.view.RemoteFileEntryView;
 import com.tool.otsutil.serverconnection.model.view.RemoteFileListView;
+import com.tool.otsutil.serverconnection.service.ServerCatalogService;
 import com.tool.otsutil.serverconnection.util.PosixPathUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,7 +25,7 @@ public class MockRemoteServerGateway implements RemoteServerGateway {
     public ServerConnectionHandle openConnection(ServerConfig serverConfig) throws IOException {
         Path rootPath = Paths.get(System.getProperty("java.io.tmpdir"), "server-connection-mock", serverConfig.getIp().replace('.', '_'));
         Files.createDirectories(rootPath);
-        return new MockServerConnectionHandle(buildServerKey(serverConfig), rootPath);
+        return new MockServerConnectionHandle(ServerCatalogService.buildServerKey(serverConfig), rootPath);
     }
 
     @Override
@@ -159,6 +160,25 @@ public class MockRemoteServerGateway implements RemoteServerGateway {
     }
 
     @Override
+    public DownloadedRemoteFile streamFile(ServerConnectionHandle handle, String basePath, String path) throws IOException {
+        String target = canonicalizePath(handle, basePath, path);
+        Path localPath = toLocalPath(handle, target);
+        if (Files.isDirectory(localPath)) {
+            DownloadedRemoteFile result = downloadFile(handle, basePath, path);
+            result.setContentStream(new java.io.ByteArrayInputStream(result.getContent()));
+            result.setContentLength(result.getContent().length);
+            return result;
+        }
+
+        DownloadedRemoteFile result = new DownloadedRemoteFile();
+        result.setFileName(localPath.getFileName().toString());
+        result.setContentType("application/octet-stream");
+        result.setContentLength(Files.size(localPath));
+        result.setContentStream(Files.newInputStream(localPath));
+        return result;
+    }
+
+    @Override
     public void uploadFiles(ServerConnectionHandle handle, String basePath, String targetPath, MultipartFile[] files) throws IOException {
         String targetDirectory = canonicalizePath(handle, basePath, targetPath);
         Path localDirectory = toLocalPath(handle, targetDirectory);
@@ -204,31 +224,21 @@ public class MockRemoteServerGateway implements RemoteServerGateway {
         return breadcrumbs;
     }
 
-    private String buildServerKey(ServerConfig serverConfig) {
-        return serverConfig.getIp() + ":" + serverConfig.getPort() + ":" + serverConfig.getUsername();
-    }
-
     private byte[] zipDirectory(Path directory) throws IOException {
         java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
         java.util.zip.ZipOutputStream zipOutputStream = new java.util.zip.ZipOutputStream(outputStream);
         try {
-            Files.walk(directory)
-                    .filter(path -> !Files.isDirectory(path))
-                    .forEach(path -> {
-                        String relativePath = directory.relativize(path).toString().replace('\\', '/');
-                        try {
-                            zipOutputStream.putNextEntry(new java.util.zip.ZipEntry(relativePath));
-                            zipOutputStream.write(Files.readAllBytes(path));
-                            zipOutputStream.closeEntry();
-                        } catch (IOException exception) {
-                            throw new RuntimeException(exception);
-                        }
-                    });
-        } catch (RuntimeException exception) {
-            if (exception.getCause() instanceof IOException) {
-                throw (IOException) exception.getCause();
-            }
-            throw exception;
+            java.nio.file.SimpleFileVisitor<Path> visitor = new java.nio.file.SimpleFileVisitor<Path>() {
+                @Override
+                public java.nio.file.FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                    String relativePath = directory.relativize(file).toString().replace('\\', '/');
+                    zipOutputStream.putNextEntry(new java.util.zip.ZipEntry(relativePath));
+                    zipOutputStream.write(Files.readAllBytes(file));
+                    zipOutputStream.closeEntry();
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+            };
+            java.nio.file.Files.walkFileTree(directory, visitor);
         } finally {
             zipOutputStream.close();
         }

@@ -167,6 +167,11 @@ public final class MysqlTableDesignSqlBuilder {
             }
         }
 
+        String tableOptions = buildAlterTableOptions(request, currentMetadata);
+        if (!tableOptions.isEmpty()) {
+            statements.add("ALTER TABLE " + MysqlIdentifierUtils.qualifyTable(request.getSchema(), request.getTable()) + " " + tableOptions);
+        }
+
         return statements;
     }
 
@@ -184,14 +189,7 @@ public final class MysqlTableDesignSqlBuilder {
     }
 
     private static String buildColumnSignature(MysqlColumnView column) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(column.getName()).append("|")
-                .append(column.getColumnType()).append("|")
-                .append(Boolean.TRUE.equals(column.getNullable()) ? "NULL" : "NOT_NULL").append("|")
-                .append(column.getDefaultValue()).append("|")
-                .append(Boolean.TRUE.equals(column.getAutoIncrement())).append("|")
-                .append(column.getComment());
-        return builder.toString();
+        return column.getName() + "|" + buildColumnDefinition(column);
     }
 
     private static String buildIndexSignature(MysqlDesignIndexRequest index) {
@@ -223,8 +221,26 @@ public final class MysqlTableDesignSqlBuilder {
         StringBuilder builder = new StringBuilder();
         builder.append(MysqlIdentifierUtils.quoteIdentifier(column.getName())).append(" ").append(buildColumnType(column));
         builder.append(Boolean.TRUE.equals(column.getNullable()) ? " NULL" : " NOT NULL");
-        if (column.getDefaultValue() != null && !column.getDefaultValue().trim().isEmpty()) {
-            builder.append(" DEFAULT ").append(formatDefaultValue(column.getDefaultValue(), column.getType()));
+        if (hasDefaultValue(column)) {
+            builder.append(" DEFAULT ").append(formatDefaultValue(column.getDefaultValue() == null ? "" : column.getDefaultValue(), column.getType()));
+        }
+        if (Boolean.TRUE.equals(column.getAutoIncrement())) {
+            builder.append(" AUTO_INCREMENT");
+        }
+        if (column.getComment() != null && !column.getComment().trim().isEmpty()) {
+            builder.append(" COMMENT '").append(escapeSingleQuote(column.getComment().trim())).append("'");
+        }
+        return builder.toString();
+    }
+
+    private static String buildColumnDefinition(MysqlColumnView column) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(MysqlIdentifierUtils.quoteIdentifier(column.getName()))
+                .append(" ")
+                .append(normalizeType(column.getColumnType()));
+        builder.append(Boolean.TRUE.equals(column.getNullable()) ? " NULL" : " NOT NULL");
+        if (column.getDefaultValue() != null) {
+            builder.append(" DEFAULT ").append(formatDefaultValue(column.getDefaultValue(), column.getColumnType()));
         }
         if (Boolean.TRUE.equals(column.getAutoIncrement())) {
             builder.append(" AUTO_INCREMENT");
@@ -236,7 +252,7 @@ public final class MysqlTableDesignSqlBuilder {
     }
 
     private static String buildColumnType(MysqlDesignColumnRequest column) {
-        String type = column.getType().trim().toUpperCase(Locale.ROOT);
+        String type = normalizeType(column.getType());
         if (column.getLength() == null) {
             return type;
         }
@@ -244,6 +260,62 @@ public final class MysqlTableDesignSqlBuilder {
             return type + "(" + column.getLength() + ")";
         }
         return type + "(" + column.getLength() + "," + column.getScale() + ")";
+    }
+
+    private static boolean hasDefaultValue(MysqlDesignColumnRequest column) {
+        if (column.getDefaultValuePresent() != null) {
+            return Boolean.TRUE.equals(column.getDefaultValuePresent());
+        }
+        return column.getDefaultValue() != null && !column.getDefaultValue().trim().isEmpty();
+    }
+
+    private static String buildAlterTableOptions(MysqlTableDesignRequest request, MysqlTableMetadataView currentMetadata) {
+        List<String> options = new ArrayList<String>();
+        String targetEngine = blankToDefault(request.getEngine(), "InnoDB");
+        String targetCharset = blankToDefault(request.getCharset(), "utf8mb4");
+        String targetComment = request.getTableComment() == null ? "" : request.getTableComment().trim();
+
+        if (!targetEngine.equalsIgnoreCase(blankToDefault(currentMetadata.getEngine(), "InnoDB"))) {
+            options.add("ENGINE=" + targetEngine);
+        }
+        if (!targetCharset.equalsIgnoreCase(blankToDefault(currentMetadata.getCharset(), "utf8mb4"))) {
+            options.add("DEFAULT CHARSET=" + targetCharset);
+        }
+        String currentComment = currentMetadata.getTableComment() == null ? "" : currentMetadata.getTableComment().trim();
+        if (!targetComment.equals(currentComment)) {
+            options.add("COMMENT='" + escapeSingleQuote(targetComment) + "'");
+        }
+        return String.join(" ", options);
+    }
+
+    private static String blankToDefault(String value, String defaultValue) {
+        return value == null || value.trim().isEmpty() ? defaultValue : value.trim();
+    }
+
+    private static String normalizeType(String type) {
+        String normalized = type == null ? "" : type.trim();
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+        return uppercaseOutsideSingleQuotedText(normalized);
+    }
+
+    private static String uppercaseOutsideSingleQuotedText(String value) {
+        StringBuilder builder = new StringBuilder(value.length());
+        boolean inQuote = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            builder.append(inQuote ? ch : Character.toUpperCase(ch));
+            if (ch == '\'') {
+                if (inQuote && i + 1 < value.length() && value.charAt(i + 1) == '\'') {
+                    builder.append(value.charAt(i + 1));
+                    i++;
+                } else {
+                    inQuote = !inQuote;
+                }
+            }
+        }
+        return builder.toString();
     }
 
     private static String formatDefaultValue(String defaultValue, String dataType) {

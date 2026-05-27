@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -145,6 +146,12 @@ public class TerminalSessionManager {
         return remoteServerGateway.downloadFile(record.getHandle(), record.getCwd(), path);
     }
 
+    public DownloadedRemoteFile streamFile(String sessionId, String path) throws IOException {
+        TerminalSessionRecord record = requireSession(sessionId);
+        record.touch();
+        return remoteServerGateway.streamFile(record.getHandle(), record.getCwd(), path);
+    }
+
     public void uploadFiles(String sessionId, String path, MultipartFile[] files) throws IOException {
         TerminalSessionRecord record = requireSession(sessionId);
         remoteServerGateway.uploadFiles(record.getHandle(), record.getCwd(), path, files);
@@ -250,11 +257,19 @@ public class TerminalSessionManager {
     private void bufferOrSend(TerminalSessionRecord record, TerminalServerMessage message) {
         try {
             if (!send(record, message)) {
-                record.getBufferedMessages().add(message);
+                addToBuffer(record, message);
             }
         } catch (IOException exception) {
-            record.getBufferedMessages().add(message);
+            addToBuffer(record, message);
         }
+    }
+
+    private void addToBuffer(TerminalSessionRecord record, TerminalServerMessage message) {
+        Queue<TerminalServerMessage> buffer = record.getBufferedMessages();
+        while (buffer.size() >= TerminalSessionRecord.MAX_BUFFERED_MESSAGES) {
+            buffer.poll();
+        }
+        buffer.add(message);
     }
 
     private void flushBuffered(TerminalSessionRecord record) throws IOException {

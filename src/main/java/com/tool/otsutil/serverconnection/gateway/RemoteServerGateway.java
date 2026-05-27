@@ -26,5 +26,7 @@ public interface RemoteServerGateway {
 
     DownloadedRemoteFile downloadFile(ServerConnectionHandle handle, String basePath, String path) throws IOException;
 
+    DownloadedRemoteFile streamFile(ServerConnectionHandle handle, String basePath, String path) throws IOException;
+
     void uploadFiles(ServerConnectionHandle handle, String basePath, String targetPath, MultipartFile[] files) throws IOException;
 }
