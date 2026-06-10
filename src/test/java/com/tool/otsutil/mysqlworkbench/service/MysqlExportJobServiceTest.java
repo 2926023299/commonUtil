@@ -57,6 +57,38 @@ class MysqlExportJobServiceTest {
         }
     }
 
+    @Test
+    void shouldExportSqlDumpWithBatchedInsertValues() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        MysqlWorkbenchService mysqlWorkbenchService = mock(MysqlWorkbenchService.class);
+        MysqlWorkbenchProperties props = new MysqlWorkbenchProperties();
+        props.getExport().setSqlBatchSize(3);
+        MysqlExportJobService service = new MysqlExportJobService(jdbcTemplate, mysqlWorkbenchService, props);
+        ResultSet resultSet = mock(ResultSet.class);
+        ResultSetMetaData metaData = mock(ResultSetMetaData.class);
+        Path filePath = Files.createTempFile("mysql-export-job-batch-", ".sql");
+
+        try {
+            given(mysqlWorkbenchService.getTableDdl("ops_db", "alarm_log"))
+                    .willReturn("CREATE TABLE `alarm_log` (\n  `id` bigint NOT NULL\n) ENGINE=InnoDB");
+            given(resultSet.getMetaData()).willReturn(metaData);
+            given(metaData.getColumnCount()).willReturn(1);
+            given(metaData.getColumnLabel(1)).willReturn("id");
+            given(resultSet.next()).willReturn(true, true, true, true, true, false);
+            given(resultSet.getObject(1)).willReturn(1L, 2L, 3L, 4L, 5L);
+
+            invokeWriteSql(service, newExportJobRecord("ops_db", "alarm_log"), resultSet, filePath);
+
+            String dumpSql = new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8).replace("\r\n", "\n");
+            // 第一批 3 行，第二批 2 行 → 两个 INSERT 语句
+            assertTrue(dumpSql.contains("INSERT INTO `alarm_log` (`id`) VALUES\n(1),\n(2),\n(3);"));
+            assertTrue(dumpSql.contains("INSERT INTO `alarm_log` (`id`) VALUES\n(4),\n(5);"));
+        } finally {
+            Files.deleteIfExists(filePath);
+            service.shutdown();
+        }
+    }
+
     private Object newExportJobRecord(String schema, String table) throws Exception {
         Class<?> recordClass = Class.forName("com.tool.otsutil.mysqlworkbench.service.MysqlExportJobService$ExportJobRecord");
         Constructor<?> constructor = recordClass.getDeclaredConstructor();

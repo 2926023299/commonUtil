@@ -2,13 +2,19 @@ package com.tool.otsutil.serverconnection.controller;
 
 import com.tool.otsutil.model.common.ResponseResult;
 import com.tool.otsutil.serverconnection.gateway.DownloadedRemoteFile;
+import com.tool.otsutil.serverconnection.model.entity.RemoteFileBookmark;
+import com.tool.otsutil.serverconnection.model.entity.ServerConnectionBookmark;
 import com.tool.otsutil.serverconnection.model.request.CreateDirectoryRequest;
 import com.tool.otsutil.serverconnection.model.request.DeleteRemoteFileRequest;
 import com.tool.otsutil.serverconnection.model.request.OpenTerminalSessionRequest;
 import com.tool.otsutil.serverconnection.model.request.RenameRemoteFileRequest;
+import com.tool.otsutil.serverconnection.model.request.SaveBookmarkRequest;
+import com.tool.otsutil.serverconnection.model.request.SaveServerBookmarkRequest;
 import com.tool.otsutil.serverconnection.model.view.RemoteFileListView;
 import com.tool.otsutil.serverconnection.model.view.ServerConnectionView;
 import com.tool.otsutil.serverconnection.model.view.TerminalSessionView;
+import com.tool.otsutil.serverconnection.service.RemoteFileBookmarkService;
+import com.tool.otsutil.serverconnection.service.ServerConnectionBookmarkService;
 import com.tool.otsutil.serverconnection.service.TerminalSessionManager;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -27,9 +33,15 @@ import java.util.List;
 public class ServerConnectionController {
 
     private final TerminalSessionManager terminalSessionManager;
+    private final RemoteFileBookmarkService bookmarkService;
+    private final ServerConnectionBookmarkService serverBookmarkService;
 
-    public ServerConnectionController(TerminalSessionManager terminalSessionManager) {
+    public ServerConnectionController(TerminalSessionManager terminalSessionManager,
+                                      RemoteFileBookmarkService bookmarkService,
+                                      ServerConnectionBookmarkService serverBookmarkService) {
         this.terminalSessionManager = terminalSessionManager;
+        this.bookmarkService = bookmarkService;
+        this.serverBookmarkService = serverBookmarkService;
     }
 
     @GetMapping("/servers")
@@ -46,6 +58,11 @@ public class ServerConnectionController {
     public ResponseResult<Void> closeSession(@PathVariable String sessionId) {
         terminalSessionManager.closeSession(sessionId);
         return ResponseResult.okResult(null);
+    }
+
+    @PostMapping("/sessions/{sessionId}/reconnect")
+    public ResponseResult<TerminalSessionView> reconnectSession(@PathVariable String sessionId) throws IOException {
+        return ResponseResult.okResult(terminalSessionManager.reconnectSession(sessionId));
     }
 
     @GetMapping("/sessions/{sessionId}/cwd")
@@ -101,5 +118,53 @@ public class ServerConnectionController {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(new InputStreamResource(file.getContentStream()));
+    }
+
+    /* ---- 远程文件快捷路径（书签） ---- */
+
+    @GetMapping("/bookmarks")
+    public ResponseResult<List<RemoteFileBookmark>> listBookmarks(
+            @RequestParam(required = false) String serverKey) {
+        return ResponseResult.okResult(bookmarkService.listByServer(serverKey));
+    }
+
+    @PostMapping("/bookmarks")
+    public ResponseResult<RemoteFileBookmark> saveBookmark(@RequestBody SaveBookmarkRequest request) {
+        RemoteFileBookmark bookmark = new RemoteFileBookmark();
+        bookmark.setId(request.getId());
+        bookmark.setLabel(request.getLabel());
+        bookmark.setPath(request.getPath());
+        bookmark.setServerKey(request.getServerKey());
+        bookmark.setSortOrder(request.getSortOrder());
+        return ResponseResult.okResult(bookmarkService.saveBookmark(bookmark));
+    }
+
+    @DeleteMapping("/bookmarks/{id}")
+    public ResponseResult<Void> deleteBookmark(@PathVariable Long id) {
+        bookmarkService.removeBookmark(id);
+        return ResponseResult.okResult(null);
+    }
+
+    /* ---- 服务器连接快捷路径（收藏） ---- */
+
+    @GetMapping("/server-bookmarks")
+    public ResponseResult<List<ServerConnectionBookmark>> listServerBookmarks() {
+        return ResponseResult.okResult(serverBookmarkService.listAll());
+    }
+
+    @PostMapping("/server-bookmarks")
+    public ResponseResult<ServerConnectionBookmark> saveServerBookmark(@RequestBody SaveServerBookmarkRequest request) {
+        ServerConnectionBookmark bookmark = new ServerConnectionBookmark();
+        bookmark.setId(request.getId());
+        bookmark.setServerKey(request.getServerKey());
+        bookmark.setAlias(request.getAlias());
+        bookmark.setSortOrder(request.getSortOrder());
+        return ResponseResult.okResult(serverBookmarkService.saveBookmark(bookmark));
+    }
+
+    @DeleteMapping("/server-bookmarks/{id}")
+    public ResponseResult<Void> deleteServerBookmark(@PathVariable Long id) {
+        serverBookmarkService.removeBookmark(id);
+        return ResponseResult.okResult(null);
     }
 }

@@ -13,7 +13,7 @@ class TerminalSessionRecord {
 
     static final int MAX_BUFFERED_MESSAGES = 2000;
 
-    private final String sessionId = UUID.randomUUID().toString();
+    private final String sessionId;
     private final String serverKey;
     private final String displayName;
     private final String username;
@@ -23,6 +23,7 @@ class TerminalSessionRecord {
     private volatile String cwd;
     private volatile long lastAccessAt;
     private volatile WebSocketSession webSocketSession;
+    private final String charset;
 
     TerminalSessionRecord(String serverKey,
                           String displayName,
@@ -30,12 +31,45 @@ class TerminalSessionRecord {
                           ServerConnectionHandle handle,
                           ServerShell shell,
                           String cwd) {
+        this(UUID.randomUUID().toString(), serverKey, displayName, username, handle, shell, cwd, "UTF-8");
+    }
+
+    TerminalSessionRecord(String serverKey,
+                          String displayName,
+                          String username,
+                          ServerConnectionHandle handle,
+                          ServerShell shell,
+                          String cwd,
+                          String charset) {
+        this(UUID.randomUUID().toString(), serverKey, displayName, username, handle, shell, cwd, charset);
+    }
+
+    TerminalSessionRecord(String sessionId,
+                          String serverKey,
+                          String displayName,
+                          String username,
+                          ServerConnectionHandle handle,
+                          ServerShell shell,
+                          String cwd) {
+        this(sessionId, serverKey, displayName, username, handle, shell, cwd, "UTF-8");
+    }
+
+    TerminalSessionRecord(String sessionId,
+                          String serverKey,
+                          String displayName,
+                          String username,
+                          ServerConnectionHandle handle,
+                          ServerShell shell,
+                          String cwd,
+                          String charset) {
+        this.sessionId = sessionId;
         this.serverKey = serverKey;
         this.displayName = displayName;
         this.username = username;
         this.handle = handle;
         this.shell = shell;
         this.cwd = cwd;
+        this.charset = charset != null ? charset : "UTF-8";
         touch();
     }
 
@@ -85,6 +119,10 @@ class TerminalSessionRecord {
 
     void setWebSocketSession(WebSocketSession webSocketSession) {
         this.webSocketSession = webSocketSession;
+    }
+
+    String getCharset() {
+        return charset;
     }
 
     Queue<TerminalServerMessage> getBufferedMessages() {

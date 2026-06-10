@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +64,74 @@ class SshjServerShellTest {
         Assertions.assertTrue(bootstrap.contains("; export PROMPT_COMMAND; "));
         Assertions.assertTrue(bootstrap.endsWith("(cd '/srv/workspace' >/dev/null 2>&1 || true); clear; stty echo\n"));
         Assertions.assertEquals(1L, bootstrap.chars().filter(ch -> ch == '\n').count());
+    }
+
+    @Test
+    void shouldSupportGbkCharsetForReadingAndWriting() throws Exception {
+        PipedOutputStream remoteWriter = new PipedOutputStream();
+        PipedInputStream inputStream = new PipedInputStream(remoteWriter);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        Session session = Mockito.mock(Session.class);
+        Session.Shell shell = Mockito.mock(Session.Shell.class);
+        Mockito.when(session.getID()).thenReturn(9);
+        Mockito.when(shell.getInputStream()).thenReturn(inputStream);
+        Mockito.when(shell.getOutputStream()).thenReturn(outputStream);
+
+        SshjServerShell serverShell = new SshjServerShell(session, shell, "/home/test", "GBK");
+        RecordingListener listener = new RecordingListener();
+        serverShell.start(listener);
+
+        String gbkText = "你好世界";
+        byte[] gbkBytes = gbkText.getBytes("GBK");
+        remoteWriter.write(gbkBytes);
+        remoteWriter.close();
+
+        Assertions.assertTrue(listener.awaitClosed(), "reader thread did not finish");
+        Assertions.assertEquals(gbkText, listener.getOutput());
+
+        String inputText = "测试输入";
+        serverShell.write(inputText);
+        String writtenText = new String(outputStream.toByteArray(), "GBK");
+        Assertions.assertTrue(writtenText.contains(inputText));
+    }
+
+    @Test
+    void shouldDefaultToUtf8WhenCharsetIsNull() throws Exception {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        Session session = Mockito.mock(Session.class);
+        Session.Shell shell = Mockito.mock(Session.Shell.class);
+        Mockito.when(session.getID()).thenReturn(10);
+        Mockito.when(shell.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        Mockito.when(shell.getOutputStream()).thenReturn(outputStream);
+
+        SshjServerShell serverShell = new SshjServerShell(session, shell, "/home/test", null);
+        RecordingListener listener = new RecordingListener();
+        serverShell.start(listener);
+
+        Assertions.assertTrue(listener.awaitClosed(), "reader thread did not finish");
+        String bootstrap = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+        Assertions.assertTrue(bootstrap.startsWith("PROMPT_COMMAND="));
+    }
+
+    @Test
+    void shouldDefaultToUtf8WhenCharsetIsEmpty() throws Exception {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        Session session = Mockito.mock(Session.class);
+        Session.Shell shell = Mockito.mock(Session.Shell.class);
+        Mockito.when(session.getID()).thenReturn(11);
+        Mockito.when(shell.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        Mockito.when(shell.getOutputStream()).thenReturn(outputStream);
+
+        SshjServerShell serverShell = new SshjServerShell(session, shell, "/home/test", "  ");
+        RecordingListener listener = new RecordingListener();
+        serverShell.start(listener);
+
+        Assertions.assertTrue(listener.awaitClosed(), "reader thread did not finish");
+        String bootstrap = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+        Assertions.assertTrue(bootstrap.startsWith("PROMPT_COMMAND="));
     }
 
     private static final class RecordingListener implements ServerShellListener {

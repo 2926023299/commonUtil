@@ -45,6 +45,11 @@ public class MockRemoteServerGateway implements RemoteServerGateway {
 
     @Override
     public ServerShell openShell(ServerConnectionHandle handle, String initialPath) throws IOException {
+        return openShell(handle, initialPath, "UTF-8");
+    }
+
+    @Override
+    public ServerShell openShell(ServerConnectionHandle handle, String initialPath, String charset) throws IOException {
         return new MockServerShell(initialPath);
     }
 

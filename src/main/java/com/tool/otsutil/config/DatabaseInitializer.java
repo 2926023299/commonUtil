@@ -35,6 +35,8 @@ public class DatabaseInitializer implements CommandLineRunner {
         ensureTable("mysql_query_history_statement", this::createMysqlQueryHistoryStatementTable);
         ensureTable("mysql_saved_query", this::createMysqlSavedQueryTable);
         ensureTable("mysql_export_job", this::createMysqlExportJobTable);
+        ensureTable("remote_file_bookmark", this::createRemoteFileBookmarkTable);
+        ensureTable("server_connection_bookmark", this::createServerConnectionBookmarkTable);
         ensureColumn("mysql_query_history_statement", "error_code",
                 "ALTER TABLE `mysql_query_history_statement` ADD COLUMN `error_code` int(11) DEFAULT NULL AFTER `error_message`");
         ensureColumn("mysql_query_history_statement", "sql_state",
@@ -182,5 +184,32 @@ public class DatabaseInitializer implements CommandLineRunner {
                 + "KEY `idx_mysql_export_job_created_at` (`created_at`),"
                 + "KEY `idx_mysql_export_job_status` (`status`)"
                 + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MySQL 工作台后台导出任务表'");
+    }
+
+    private void createRemoteFileBookmarkTable() {
+        jdbcTemplate.execute("CREATE TABLE `remote_file_bookmark` ("
+                + "`id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',"
+                + "`label` varchar(64) NOT NULL COMMENT '书签名称',"
+                + "`path` varchar(512) NOT NULL COMMENT '远程路径',"
+                + "`server_key` varchar(128) DEFAULT NULL COMMENT '服务器标识(ip:port:username)，NULL表示全局共享',"
+                + "`sort_order` int NOT NULL DEFAULT 0 COMMENT '排序序号',"
+                + "`create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',"
+                + "`update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',"
+                + "PRIMARY KEY (`id`),"
+                + "KEY `idx_server_key` (`server_key`)"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='远程文件快捷路径'");
+    }
+
+    private void createServerConnectionBookmarkTable() {
+        jdbcTemplate.execute("CREATE TABLE `server_connection_bookmark` ("
+                + "`id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',"
+                + "`server_key` varchar(128) NOT NULL COMMENT '服务器标识(ip:port:username)',"
+                + "`alias` varchar(64) DEFAULT NULL COMMENT '自定义备注名称',"
+                + "`sort_order` int NOT NULL DEFAULT 0 COMMENT '排序序号',"
+                + "`create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',"
+                + "`update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',"
+                + "PRIMARY KEY (`id`),"
+                + "UNIQUE KEY `uk_server_key` (`server_key`)"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务器连接快捷路径'");
     }
 }

@@ -11,6 +11,8 @@ public interface ServerShell extends Closeable {
 
     void resize(int cols, int rows) throws IOException;
 
+    boolean isAlive();
+
     @Override
     void close() throws IOException;
 }

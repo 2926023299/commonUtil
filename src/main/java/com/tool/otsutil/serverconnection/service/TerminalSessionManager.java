@@ -68,7 +68,8 @@ public class TerminalSessionManager {
         if (request.getInitialPath() != null && !request.getInitialPath().trim().isEmpty()) {
             cwd = remoteServerGateway.canonicalizePath(handle, cwd, request.getInitialPath());
         }
-        ServerShell shell = remoteServerGateway.openShell(handle, cwd);
+        String charset = request.getCharset() != null ? request.getCharset() : "UTF-8";
+        ServerShell shell = remoteServerGateway.openShell(handle, cwd, charset);
 
         TerminalSessionRecord record = new TerminalSessionRecord(
                 request.getServerKey(),
@@ -76,7 +77,8 @@ public class TerminalSessionManager {
                 serverConfig.getUsername(),
                 handle,
                 shell,
-                cwd
+                cwd,
+                charset
         );
         sessions.put(record.getSessionId(), record);
 
@@ -99,6 +101,67 @@ public class TerminalSessionManager {
         });
 
         return toView(record);
+    }
+
+    public TerminalSessionView reconnectSession(String sessionId) throws IOException {
+        TerminalSessionRecord oldRecord = requireSession(sessionId);
+
+        String serverKey = oldRecord.getServerKey();
+        String reconnectPath = oldRecord.getCwd();
+        String charset = oldRecord.getCharset();
+        WebSocketSession existingWebSocket = oldRecord.getWebSocketSession();
+
+        try {
+            oldRecord.getShell().close();
+        } catch (IOException ignored) {
+        }
+        try {
+            oldRecord.getHandle().close();
+        } catch (IOException ignored) {
+        }
+
+        ServerConfig serverConfig = serverCatalogService.getServerConfig(serverKey);
+        ServerConnectionHandle handle = remoteServerGateway.openConnection(serverConfig);
+        String cwd = remoteServerGateway.canonicalizePath(handle, "/", reconnectPath);
+        ServerShell shell = remoteServerGateway.openShell(handle, cwd, charset);
+
+        TerminalSessionRecord newRecord = new TerminalSessionRecord(
+                sessionId,
+                serverKey,
+                serverCatalogService.buildDisplayName(serverConfig),
+                serverConfig.getUsername(),
+                handle,
+                shell,
+                cwd,
+                charset
+        );
+        sessions.put(sessionId, newRecord);
+
+        shell.start(new ServerShellListener() {
+            @Override
+            public void onOutput(String data) {
+                bufferOrSend(newRecord, TerminalServerMessage.output(data));
+            }
+
+            @Override
+            public void onStatus(String status, String message) {
+                bufferOrSend(newRecord, TerminalServerMessage.status(status, message));
+            }
+
+            @Override
+            public void onCurrentDirectory(String cwdValue) {
+                newRecord.setCwd(cwdValue);
+                bufferOrSend(newRecord, TerminalServerMessage.cwd(cwdValue));
+            }
+        });
+
+        if (existingWebSocket != null && existingWebSocket.isOpen()) {
+            newRecord.setWebSocketSession(existingWebSocket);
+            send(newRecord, TerminalServerMessage.status("connected", "ssh reconnected"));
+            send(newRecord, TerminalServerMessage.cwd(newRecord.getCwd()));
+        }
+
+        return toView(newRecord);
     }
 
     public void closeSession(String sessionId) {
@@ -167,6 +230,11 @@ public class TerminalSessionManager {
         record.setWebSocketSession(webSocketSession);
         record.touch();
 
+        if (!record.getShell().isAlive()) {
+            send(record, TerminalServerMessage.status("ssh-closed", "SSH连接已断开，请重新连接"));
+            return;
+        }
+
         send(record, TerminalServerMessage.status("connected", "websocket attached"));
         send(record, TerminalServerMessage.cwd(record.getCwd()));
         flushBuffered(record);
@@ -190,16 +258,27 @@ public class TerminalSessionManager {
         }
 
         if ("input".equals(message.getType())) {
+            if (!record.getShell().isAlive()) {
+                send(record, TerminalServerMessage.status("ssh-closed", "SSH连接已断开，请重新连接"));
+                return;
+            }
             record.getShell().write(message.getData() == null ? "" : message.getData());
             return;
         }
 
         if ("resize".equals(message.getType())) {
+            if (!record.getShell().isAlive()) {
+                return;
+            }
             record.getShell().resize(message.getCols() == null ? 120 : message.getCols(), message.getRows() == null ? 32 : message.getRows());
             return;
         }
 
         if ("ping".equals(message.getType())) {
+            if (!record.getShell().isAlive()) {
+                send(record, TerminalServerMessage.status("ssh-closed", "SSH连接已断开，请重新连接"));
+                return;
+            }
             send(record, TerminalServerMessage.status("connected", "pong"));
             send(record, TerminalServerMessage.cwd(record.getCwd()));
             return;

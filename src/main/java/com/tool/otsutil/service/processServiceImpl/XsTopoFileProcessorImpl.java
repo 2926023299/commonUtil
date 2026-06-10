@@ -54,7 +54,16 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
             "发生合位转电",
             "映射到对侧线路",
             "update ies_xs.calc_desc",
-            "equip:"
+            "equip:",
+            "查询conditionevent",
+            "tie_breaker_status",
+            "光伏用户站房内开关",
+            "判定转电",
+            "未在当前周表获取到设备",
+            "获取到设备",
+            "历史状态取反",
+            "是站内母线连接点",
+            "select Value from"
     };
 
     private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})");
@@ -72,6 +81,12 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
     private static final Pattern TOPOLOGY_END_PATTERN = Pattern.compile("线路(\\d+)拓扑结束,已完成数(\\d+)");
     private static final Pattern UPDATE_SQL_PATTERN = Pattern.compile("(?i)update\\s+ies_xs\\.calc_desc\\s+set\\s+.*");
     private static final Pattern UPDATE_SQL_TARGET_ID_PATTERN = Pattern.compile("(?i)\\bid=(\\d+)");
+    private static final Pattern TIE_BREAKER_STATUS_PATTERN = Pattern.compile("tie_breaker_status表联络开关断面状态为(分闸|合闸)(,判定转电)?");
+    private static final Pattern PV_USER_SWITCH_PATTERN = Pattern.compile("(\\d+)为光伏用户站房内开关,默认(合位|分位)");
+    private static final Pattern CONDITION_EVENT_SELECT_PATTERN = Pattern.compile("(?i)select\\s+Value\\s+from\\s+(\\S+)\\s+where\\s+.*ResourceID=(\\d+).*");
+    private static final Pattern DEVICE_NOT_IN_PERIOD_PATTERN = Pattern.compile("未在当前周表获取到设备(\\d+)的历史状态");
+    private static final Pattern HISTORICAL_STATUS_REVERSE_PATTERN = Pattern.compile("获取到设备(\\d+)的最接近计算日期的历史状态取反:(\\d+)");
+    private static final Pattern STATION_BUS_CONNECTION_PATTERN = Pattern.compile("(\\d+)是站内母线连接点");
 
     private final TopoDeviceMapper topoDeviceMapper;
     private final String excelExportPath;
@@ -221,6 +236,14 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
             return ParsedXsTopoEvent.transferStart(timestamp, feederId, switchId);
         }
 
+        if (line.contains("查询conditionevent当天分合闸事项个数不相等,判定转电")) {
+            return ParsedXsTopoEvent.textEvent(
+                    XsTopoEventType.TRANSFER_CONDITION_DETERMINED,
+                    timestamp,
+                    resolveActiveFeederId(streamingContext),
+                    "查询conditionevent当天分合闸事项个数不相等,判定转电");
+        }
+
         Matcher transferSectionStartMatcher = TRANSFER_SECTION_START_PATTERN.matcher(line);
         if (transferSectionStartMatcher.find()) {
             String switchId = transferSectionStartMatcher.group(1);
@@ -323,6 +346,28 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
                     null);
         }
 
+        if (line.contains("查询conditionevent当天分合闸事项都为空")) {
+            return ParsedXsTopoEvent.textEvent(
+                    XsTopoEventType.CONDITION_EVENT_EMPTY,
+                    timestamp,
+                    resolveActiveFeederId(streamingContext),
+                    "查询conditionevent当天分合闸事项都为空");
+        }
+
+        if (line.contains("tie_breaker_status")) {
+            Matcher tieBreakerStatusMatcher = TIE_BREAKER_STATUS_PATTERN.matcher(line);
+            if (tieBreakerStatusMatcher.find()) {
+                String status = tieBreakerStatusMatcher.group(1);
+                boolean triggersTransfer = tieBreakerStatusMatcher.group(2) != null;
+                String desc = "tie_breaker_status表联络开关断面状态为" + status + (triggersTransfer ? ",判定转电" : "");
+                return ParsedXsTopoEvent.textEvent(
+                        XsTopoEventType.TIE_BREAKER_STATUS,
+                        timestamp,
+                        resolveActiveFeederId(streamingContext),
+                        desc);
+            }
+        }
+
         Matcher updateSqlMatcher = UPDATE_SQL_PATTERN.matcher(line);
         if (updateSqlMatcher.find()) {
             String displayFeederId = extractUpdateSqlTargetFeederId(line);
@@ -342,6 +387,74 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
                     null,
                     null,
                     "拓扑经过设备");
+        }
+
+        if (line.contains("为光伏用户站房内开关")) {
+            Matcher pvUserSwitchMatcher = PV_USER_SWITCH_PATTERN.matcher(line);
+            if (pvUserSwitchMatcher.find()) {
+                String deviceId = pvUserSwitchMatcher.group(1);
+                String defaultPosition = pvUserSwitchMatcher.group(2);
+                return ParsedXsTopoEvent.device(
+                        XsTopoEventType.PV_USER_SWITCH,
+                        timestamp,
+                        resolveActiveFeederId(streamingContext),
+                        deviceId,
+                        null,
+                        defaultPosition,
+                        "光伏用户站房内开关,默认" + defaultPosition);
+            }
+        }
+
+        Matcher historicalStatusMatcher = HISTORICAL_STATUS_REVERSE_PATTERN.matcher(line);
+        if (historicalStatusMatcher.find()) {
+            String deviceId = historicalStatusMatcher.group(1);
+            String reversedValue = historicalStatusMatcher.group(2);
+            String status = mapSwitchStatus(reversedValue);
+            return ParsedXsTopoEvent.device(
+                    XsTopoEventType.HISTORICAL_STATUS_REVERSE,
+                    timestamp,
+                    resolveActiveFeederId(streamingContext),
+                    deviceId,
+                    null,
+                    status,
+                    "获取到设备最接近计算日期的历史状态取反:" + reversedValue);
+        }
+
+        Matcher deviceNotInPeriodMatcher = DEVICE_NOT_IN_PERIOD_PATTERN.matcher(line);
+        if (deviceNotInPeriodMatcher.find()) {
+            return ParsedXsTopoEvent.device(
+                    XsTopoEventType.DEVICE_NOT_IN_PERIOD,
+                    timestamp,
+                    resolveActiveFeederId(streamingContext),
+                    deviceNotInPeriodMatcher.group(1),
+                    null,
+                    null,
+                    "未在当前周表获取到设备的历史状态");
+        }
+
+        Matcher stationBusMatcher = STATION_BUS_CONNECTION_PATTERN.matcher(line);
+        if (stationBusMatcher.find()) {
+            return ParsedXsTopoEvent.device(
+                    XsTopoEventType.STATION_BUS_CONNECTION,
+                    timestamp,
+                    resolveActiveFeederId(streamingContext),
+                    stationBusMatcher.group(1),
+                    null,
+                    null,
+                    "站内母线连接点");
+        }
+
+        Matcher selectSqlMatcher = CONDITION_EVENT_SELECT_PATTERN.matcher(line);
+        if (selectSqlMatcher.find()) {
+            String resourceId = selectSqlMatcher.group(2);
+            return ParsedXsTopoEvent.device(
+                    XsTopoEventType.CONDITION_EVENT_QUERY,
+                    timestamp,
+                    resolveActiveFeederId(streamingContext),
+                    resourceId,
+                    null,
+                    null,
+                    line.trim());
         }
 
         return null;
@@ -389,6 +502,11 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
             case MEASURE_MISSING:
             case MEASURE_VALUE_TRANSFER:
             case MEASURE_MISSING_TRANSFER:
+            case PV_USER_SWITCH:
+            case HISTORICAL_STATUS_REVERSE:
+            case DEVICE_NOT_IN_PERIOD:
+            case STATION_BUS_CONNECTION:
+            case CONDITION_EVENT_QUERY:
                 fillDeviceFromLookup(row, parsedEvent.deviceId, lookupContext);
                 break;
             case TRANSFER_MAPPING:
@@ -447,6 +565,22 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
             case TRANSFER_MAPPING:
                 return buildTransferMappingDescription(parsedEvent, lookupContext);
             case TRANSFER_UPDATE_SQL:
+                return parsedEvent.description;
+            case CONDITION_EVENT_EMPTY:
+                return parsedEvent.description;
+            case TIE_BREAKER_STATUS:
+                return parsedEvent.description;
+            case TRANSFER_CONDITION_DETERMINED:
+                return parsedEvent.description;
+            case PV_USER_SWITCH:
+                return parsedEvent.description;
+            case HISTORICAL_STATUS_REVERSE:
+                return parsedEvent.description;
+            case DEVICE_NOT_IN_PERIOD:
+                return parsedEvent.description;
+            case STATION_BUS_CONNECTION:
+                return parsedEvent.description;
+            case CONDITION_EVENT_QUERY:
                 return parsedEvent.description;
             default:
                 return "";
@@ -600,7 +734,15 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
         TRANSFER_MAPPING("对侧线路映射"),
         TRANSFER_UPDATE_SQL("转电更新SQL"),
         MEASURE_VALUE_TRANSFER("量测状态"),
-        MEASURE_MISSING_TRANSFER("量测缺失");
+        MEASURE_MISSING_TRANSFER("量测缺失"),
+        CONDITION_EVENT_EMPTY("条件事项为空"),
+        TIE_BREAKER_STATUS("断面状态查询"),
+        TRANSFER_CONDITION_DETERMINED("条件判定转电"),
+        PV_USER_SWITCH("光伏用户开关"),
+        HISTORICAL_STATUS_REVERSE("历史状态取反"),
+        DEVICE_NOT_IN_PERIOD("周期内未取到"),
+        STATION_BUS_CONNECTION("站内母线连接点"),
+        CONDITION_EVENT_QUERY("分合闸事项查询");
 
         private final String displayName;
 
@@ -695,6 +837,18 @@ public class XsTopoFileProcessorImpl extends AbstractFileProcessor {
             event.timestamp = timestamp;
             event.feederId = feederId;
             event.completedCount = completedCount;
+            return event;
+        }
+
+        static ParsedXsTopoEvent textEvent(XsTopoEventType eventType,
+                                           String timestamp,
+                                           String feederId,
+                                           String description) {
+            ParsedXsTopoEvent event = new ParsedXsTopoEvent();
+            event.eventType = eventType;
+            event.timestamp = timestamp;
+            event.feederId = feederId;
+            event.description = description;
             return event;
         }
     }

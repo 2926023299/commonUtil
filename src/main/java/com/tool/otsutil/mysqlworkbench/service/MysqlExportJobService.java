@@ -277,6 +277,7 @@ public class MysqlExportJobService {
         if (!"TABLE".equals(record.sourceType)) {
             throw new CustomException(AppHttpCodeEnum.PARAM_INVALID, "SQL 格式导出仅支持表数据");
         }
+        int batchSize = Math.max(1, properties.getExport().getSqlBatchSize());
         try (BufferedWriter writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8)) {
             String tableName = MysqlIdentifierUtils.quoteIdentifier(record.table);
             writer.write("-- MySQL Workbench export");
@@ -297,8 +298,9 @@ public class MysqlExportJobService {
                 columnSql.append(MysqlIdentifierUtils.quoteIdentifier(metaData.getColumnLabel(i)));
             }
             long rows = 0;
+            int batchIndex = 0;
             while (resultSet.next()) {
-                if (rows == 0) {
+                if (batchIndex == 0) {
                     writer.write("INSERT INTO " + tableName + " (" + columnSql + ") VALUES");
                     writer.newLine();
                 } else {
@@ -314,9 +316,15 @@ public class MysqlExportJobService {
                 }
                 writer.write(")");
                 rows++;
+                batchIndex++;
+                if (batchIndex >= batchSize) {
+                    writer.write(";");
+                    writer.newLine();
+                    batchIndex = 0;
+                }
                 updateProgress(jobId, rows);
             }
-            if (rows > 0) {
+            if (batchIndex > 0) {
                 writer.write(";");
                 writer.newLine();
             }

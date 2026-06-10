@@ -5,6 +5,7 @@ import net.schmizz.sshj.connection.channel.direct.Session;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -13,13 +14,20 @@ public class SshjServerShell implements ServerShell {
     private final Session session;
     private final Session.Shell shell;
     private final String initialPath;
+    private final Charset charset;
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final StringBuilder outputBuffer = new StringBuilder();
+    private volatile boolean alive = false;
 
     public SshjServerShell(Session session, Session.Shell shell, String initialPath) {
+        this(session, shell, initialPath, "UTF-8");
+    }
+
+    public SshjServerShell(Session session, Session.Shell shell, String initialPath, String charsetName) {
         this.session = session;
         this.shell = shell;
         this.initialPath = initialPath;
+        this.charset = parseCharset(charsetName);
     }
 
     @Override
@@ -58,7 +66,13 @@ public class SshjServerShell implements ServerShell {
     }
 
     @Override
+    public boolean isAlive() {
+        return alive;
+    }
+
+    @Override
     public void close() throws IOException {
+        alive = false;
         try {
             shell.close();
         } finally {
@@ -66,18 +80,32 @@ public class SshjServerShell implements ServerShell {
         }
     }
 
+    private Charset parseCharset(String charsetName) {
+        if (charsetName == null || charsetName.trim().isEmpty()) {
+            return StandardCharsets.UTF_8;
+        }
+        try {
+            return Charset.forName(charsetName.trim());
+        } catch (Exception e) {
+            return StandardCharsets.UTF_8;
+        }
+    }
+
     private void readLoop(ServerShellListener listener) {
         try {
+            alive = true;
             InputStream inputStream = shell.getInputStream();
             byte[] buffer = new byte[4096];
             int read;
             while ((read = inputStream.read(buffer)) != -1) {
-                String chunk = new String(buffer, 0, read, StandardCharsets.UTF_8);
+                String chunk = new String(buffer, 0, read, charset);
                 dispatchChunk(listener, chunk);
             }
+            alive = false;
             flushBufferedOutput(listener, true);
             listener.onStatus("closed", "shell closed");
         } catch (Exception exception) {
+            alive = false;
             listener.onStatus("error", exception.getMessage());
         }
     }
@@ -161,7 +189,7 @@ public class SshjServerShell implements ServerShell {
 
     private void writeInternal(String data) throws IOException {
         OutputStream outputStream = shell.getOutputStream();
-        outputStream.write(data.getBytes(StandardCharsets.UTF_8));
+        outputStream.write(data.getBytes(charset));
         outputStream.flush();
     }
 

@@ -15,6 +15,9 @@ import com.tool.otsutil.service.InspectionImpl.InspectionTableService;
 import com.tool.otsutil.service.InspectionImpl.TuMoStatisticsService;
 import com.tool.otsutil.service.auth.AuthService;
 import com.tool.otsutil.serverconnection.controller.ServerConnectionController;
+import com.tool.otsutil.serverconnection.model.entity.ServerConnectionBookmark;
+import com.tool.otsutil.serverconnection.service.RemoteFileBookmarkService;
+import com.tool.otsutil.serverconnection.service.ServerConnectionBookmarkService;
 import com.tool.otsutil.serverconnection.service.TerminalSessionManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +50,8 @@ class AuthFlowTest {
 
     private TerminalSessionManager terminalSessionManager;
 
+    private RemoteFileBookmarkService remoteFileBookmarkService;
+
     private MysqlWorkbenchService mysqlWorkbenchService;
 
     private MysqlSavedQueryService mysqlSavedQueryService;
@@ -55,6 +60,8 @@ class AuthFlowTest {
 
     private MysqlSqlExecutionService mysqlSqlExecutionService;
 
+    private ServerConnectionBookmarkService serverConnectionBookmarkService;
+
     @BeforeEach
     void setUp() {
         inspectionService = mock(InspectionService.class);
@@ -62,6 +69,7 @@ class AuthFlowTest {
         inspectionTableService = mock(InspectionTableService.class);
         inspectionQueryService = mock(InspectionQueryService.class);
         terminalSessionManager = mock(TerminalSessionManager.class);
+        remoteFileBookmarkService = mock(RemoteFileBookmarkService.class);
         mysqlWorkbenchService = mock(MysqlWorkbenchService.class);
         mysqlSavedQueryService = mock(MysqlSavedQueryService.class);
         mysqlExportJobService = mock(MysqlExportJobService.class);
@@ -84,7 +92,7 @@ class AuthFlowTest {
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new AuthController(authService),
                         inspectionController,
-                        new ServerConnectionController(terminalSessionManager),
+                        new ServerConnectionController(terminalSessionManager, remoteFileBookmarkService, serverConnectionBookmarkService),
                         new MysqlWorkbenchController(mysqlWorkbenchService, mysqlSavedQueryService, mysqlExportJobService, mysqlSqlExecutionService, authService)
                 )
                 .addMappedInterceptors(

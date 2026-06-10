@@ -244,6 +244,7 @@ public class InspectionService {
 			sshClient.addHostKeyVerifier(new PromiscuousVerifier());
 			sshClient.connect(server.getIp(), server.getPort());
 			sshClient.authPassword(server.getUsername(), server.getPassword());
+			sshClient.getConnection().getKeepAlive().start();
 		} catch (IOException e) {
 			log.error(":服务器{}连接错误", server.getIp());
 			throw new IOException(e);

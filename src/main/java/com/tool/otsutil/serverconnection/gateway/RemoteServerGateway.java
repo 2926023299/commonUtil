@@ -16,6 +16,8 @@ public interface RemoteServerGateway {
 
     ServerShell openShell(ServerConnectionHandle handle, String initialPath) throws IOException;
 
+    ServerShell openShell(ServerConnectionHandle handle, String initialPath, String charset) throws IOException;
+
     RemoteFileListView listFiles(ServerConnectionHandle handle, String basePath, String requestedPath) throws IOException;
 
     String createDirectory(ServerConnectionHandle handle, String basePath, String parentPath, String name) throws IOException;

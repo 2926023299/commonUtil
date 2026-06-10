@@ -29,5 +29,5 @@ public class ServerConnectionProperties {
     /**
      * SSH transport keepalive interval in seconds. A value of 0 or less disables SSH keepalive.
      */
-    private int sshKeepaliveIntervalSeconds = 30;
+    private int sshKeepaliveIntervalSeconds = 15;
 }

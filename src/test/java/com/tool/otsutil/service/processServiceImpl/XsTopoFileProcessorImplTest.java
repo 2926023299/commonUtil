@@ -251,6 +251,81 @@ class XsTopoFileProcessorImplTest {
         assertEquals("拓扑结束", snapshot.rows.get(2).get(2));
     }
 
+    @Test
+    void processShouldParseNewLineTypesFromSingleLog() throws IOException {
+        TopoDeviceMapper topoDeviceMapper = Mockito.mock(TopoDeviceMapper.class);
+        XsTopoFileProcessorImpl processor = new XsTopoFileProcessorImpl(topoDeviceMapper, tempDir.resolve("excel-single").toString());
+
+        mockLookup(topoDeviceMapper,
+                Arrays.asList(feeder("18014398643712526", "馈线A")),
+                Arrays.asList(
+                        device("4503599763218001", "出线开关A", "馈线A"),
+                        device("5629499678140750", "设备A", "馈线A"),
+                        device("4503599728073085", "边界设备A", "馈线A"),
+                        device("12384899075938262", "末端设备A", "馈线A"),
+                        device("9288675865318470", "站房母线A", "馈线A")
+                ));
+
+        Path monitorDir = Files.createDirectories(tempDir.resolve("monitor-single"));
+        Path sourceFile = monitorDir.resolve("modelmanage.log");
+        Files.write(sourceFile, Arrays.asList(
+                "2026-06-04 18:02:35 start_equip:18014398643712526,4503599763218001",
+                "2026-06-04 18:02:35 equip:5629499678140750",
+                "2026-06-04 18:02:35 select Value from ies_ls.conditionevent202605_05 where Event_Type in (2,3) and ResourceID=4503599728073085 and event_time>=date '2026-05-27' order by event_time asc",
+                "2026-06-04 18:02:43 未在当前周表获取到设备4503599728073085的历史状态",
+                "2026-06-04 18:02:51 获取到设备4503599728073085的最接近计算日期的历史状态取反:1",
+                "2026-06-04 18:02:51 找到边界设备12384899075938262,终止分支拓扑",
+                "2026-06-04 18:03:00 9288675865318470是站内母线连接点",
+                "2026-06-04 18:03:00 线路18014398643712526拓扑结束,已完成数5"
+        ), StandardCharsets.UTF_8);
+
+        ProcessingResult result = processor.process(sourceFile.toString(), null, FileMonitorConfig.builder()
+                .directory(monitorDir.toString())
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals(8L, ((Number) result.getData()).longValue());
+
+        Path excelFile = Files.list(tempDir.resolve("excel-single")).findFirst().orElseThrow(IllegalStateException::new);
+        ExcelSnapshot snapshot = readExcel(excelFile);
+        List<List<String>> rows = snapshot.rows;
+
+        assertEquals(9, rows.size());
+
+        assertEquals("馈线开始", rows.get(1).get(2));
+        assertEquals("18014398643712526", rows.get(1).get(4));
+        assertEquals("4503599763218001", rows.get(1).get(6));
+
+        assertEquals("设备经过", rows.get(2).get(2));
+        assertEquals("5629499678140750", rows.get(2).get(6));
+        assertEquals("设备A", rows.get(2).get(7));
+
+        assertEquals("分合闸事项查询", rows.get(3).get(2));
+        assertEquals("4503599728073085", rows.get(3).get(6));
+        assertTrue(rows.get(3).get(3).contains("select Value from"));
+        assertTrue(rows.get(3).get(3).contains("conditionevent202605_05"));
+        assertTrue(rows.get(3).get(3).contains("ResourceID=4503599728073085"));
+
+        assertEquals("周期内未取到", rows.get(4).get(2));
+        assertEquals("4503599728073085", rows.get(4).get(6));
+        assertTrue(rows.get(4).get(3).contains("未在当前周表"));
+
+        assertEquals("历史状态取反", rows.get(5).get(2));
+        assertEquals("4503599728073085", rows.get(5).get(6));
+        assertEquals("边界设备A", rows.get(5).get(7));
+        assertEquals("合", rows.get(5).get(10));
+
+        assertEquals("边界设备", rows.get(6).get(2));
+        assertEquals("12384899075938262", rows.get(6).get(6));
+
+        assertEquals("站内母线连接点", rows.get(7).get(2));
+        assertEquals("9288675865318470", rows.get(7).get(6));
+        assertEquals("站房母线A", rows.get(7).get(7));
+
+        assertEquals("拓扑结束", rows.get(8).get(2));
+        assertEquals("18014398643712526", rows.get(8).get(4));
+    }
+
     private TopoDeviceRecord device(String id, String deviceName, String feederName) {
         TopoDeviceRecord record = new TopoDeviceRecord();
         record.setId(id);

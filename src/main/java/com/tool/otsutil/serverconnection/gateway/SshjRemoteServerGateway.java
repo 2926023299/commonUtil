@@ -68,12 +68,17 @@ public class SshjRemoteServerGateway implements RemoteServerGateway {
 
     @Override
     public ServerShell openShell(ServerConnectionHandle handle, String initialPath) throws IOException {
+        return openShell(handle, initialPath, "UTF-8");
+    }
+
+    @Override
+    public ServerShell openShell(ServerConnectionHandle handle, String initialPath, String charset) throws IOException {
         Session session = getHandle(handle).getSshClient().startSession();
         Map<PTYMode, Integer> ptyModes = new EnumMap<PTYMode, Integer>(PTYMode.class);
         ptyModes.put(PTYMode.ECHO, 0);
         session.allocatePTY("xterm", 120, 32, 960, 512, ptyModes);
         Session.Shell shell = session.startShell();
-        return new SshjServerShell(session, shell, initialPath);
+        return new SshjServerShell(session, shell, initialPath, charset);
     }
 
     @Override

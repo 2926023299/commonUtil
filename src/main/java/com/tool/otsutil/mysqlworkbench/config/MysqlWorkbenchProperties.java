@@ -35,5 +35,7 @@ public class MysqlWorkbenchProperties {
         private int threadPoolSize = 2;
 
         private int retentionHours = 24;
+
+        private int sqlBatchSize = 500;
     }
 }

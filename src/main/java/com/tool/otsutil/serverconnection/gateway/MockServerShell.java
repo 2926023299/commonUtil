@@ -7,6 +7,7 @@ import java.io.IOException;
 public class MockServerShell implements ServerShell {
 
     private volatile String cwd;
+    private volatile boolean alive = true;
     private ServerShellListener listener;
 
     public MockServerShell(String initialPath) {
@@ -57,7 +58,13 @@ public class MockServerShell implements ServerShell {
     }
 
     @Override
+    public boolean isAlive() {
+        return alive;
+    }
+
+    @Override
     public void close() throws IOException {
+        alive = false;
         if (listener != null) {
             listener.onStatus("closed", "mock shell closed");
         }
